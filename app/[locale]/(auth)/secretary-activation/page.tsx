@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { UserCheck, Lock, User, CheckCircle2, ArrowRight, Building2 } from "lucide-react";
+import { UserCheck, Lock, User, Building2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SecretaryActivationPage() {
@@ -30,94 +30,94 @@ export default function SecretaryActivationPage() {
   };
 
   return (
-    <div className="card p-6 sm:p-8 bg-white border border-gray-100 shadow-xl shadow-cyan-950/5">
+    <div className="doctech-card p-7 sm:p-9 bg-white">
       <div className="text-center mb-6">
-        <div className="w-12 h-12 rounded-xl bg-cyan-50 text-[#0891B2] flex items-center justify-center mx-auto mb-3">
+        <div className="w-12 h-12 rounded-2xl bg-cyan-50 text-[#0891B2] flex items-center justify-center mx-auto mb-3 shadow-xs">
           <UserCheck size={24} />
         </div>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-50 text-[#0891B2] border border-cyan-100 mb-2">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-cyan-50 text-[#0891B2] border border-cyan-100 mb-2">
           <Building2 size={13} />
           Al-Amal Clinic Invitation
         </span>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {isRTL ? "تفعيل حساب السكرتيرة" : "Activate Secretary Account"}
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          {isRTL ? "تفعيل حساب السكرتيرة" : "Activate Account"}
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
           {isRTL
             ? "لقد دعاك د. أحمد للانضمام إلى فريق العيادة. قم بإنشاء كلمة المرور."
             : "Dr. Ahmed invited you to join the clinic team. Complete your setup."}
         </p>
       </div>
 
-      <form onSubmit={handleActivate} className="space-y-3.5">
+      <form onSubmit={handleActivate} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">
+          <label className="block text-xs font-bold text-slate-700 mb-1.5">
             {isRTL ? "الاسم الكامل" : "Full Name"}
           </label>
           <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <User className="doctech-input-icon" size={17} />
             <input
               type="text"
               required
               value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0891B2]"
+              className="doctech-input"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">
+          <label className="block text-xs font-bold text-slate-700 mb-1.5">
             {isRTL ? "البريد الإلكتروني المعتمد" : "Assigned Clinic Email"}
           </label>
           <input
             type="email"
             disabled
             value={formData.email}
-            className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed"
+            className="w-full h-11 px-3.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-500 cursor-not-allowed"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">
+          <label className="block text-xs font-bold text-slate-700 mb-1.5">
             {isRTL ? "تعيين كلمة المرور" : "Create Password"}
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Lock className="doctech-input-icon" size={17} />
             <input
               type="password"
               required
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               placeholder="••••••••"
-              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0891B2]"
+              className="doctech-input"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">
+          <label className="block text-xs font-bold text-slate-700 mb-1.5">
             {isRTL ? "تأكيد كلمة المرور" : "Confirm Password"}
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Lock className="doctech-input-icon" size={17} />
             <input
               type="password"
               required
               value={formData.confirmPassword}
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               placeholder="••••••••"
-              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0891B2]"
+              className="doctech-input"
             />
           </div>
         </div>
 
         <button
           type="submit"
-          className="w-full mt-2 py-2.5 px-4 rounded-lg bg-[#0891B2] text-white text-sm font-semibold hover:bg-cyan-700 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-cyan-900/10"
+          className="w-full mt-2 h-11 rounded-xl bg-[#0891B2] hover:bg-[#0E7490] text-white text-sm font-bold shadow-md shadow-cyan-900/15 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
         >
           <span>{isRTL ? "تفعيل الحساب والدخول للوحة التحكم" : "Activate & Enter Dashboard"}</span>
-          <ArrowRight size={16} />
+          <ArrowRight size={16} className={isRTL ? "rotate-180" : ""} />
         </button>
       </form>
     </div>

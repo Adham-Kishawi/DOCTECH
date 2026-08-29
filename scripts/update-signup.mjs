@@ -1,4 +1,10 @@
-"use client";
+import fs from "node:fs";
+import path from "node:path";
+
+const base = "D:\\FULL-PROJECTS\\DOCTECH\\app\\[locale]\\(auth)";
+
+// 1. SIGN UP
+const signUp = `"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -38,7 +44,7 @@ export default function SignUpPage() {
     e.preventDefault();
     setLoading(true);
     toast.success(isRTL ? "تم إنشاء الحساب بنجاح! انتقل لإعداد العيادة." : "Account created! Proceed to Clinic Setup.");
-    router.push(`/${locale}/clinic-setup`);
+    router.push(\`/\${locale}/clinic-setup\`);
   };
 
   return (
@@ -173,10 +179,13 @@ export default function SignUpPage() {
 
       <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500 font-medium">
         <span>{isRTL ? "لديك حساب بالفعل؟" : "Already have an account?"} </span>
-        <Link href={`/${locale}/sign-in`} className="font-bold text-[#1A4B8C] hover:underline">
+        <Link href={\`/\${locale}/sign-in\`} className="font-bold text-[#1A4B8C] hover:underline">
           {isRTL ? "تسجيل الدخول" : "Sign In"}
         </Link>
       </div>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync(path.join(base, "sign-up", "page.tsx"), signUp, "utf8");
+console.log("sign-up updated");

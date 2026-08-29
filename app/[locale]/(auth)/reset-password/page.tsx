@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Lock, ArrowRight, CheckCircle2, ShieldAlert } from "lucide-react";
+import { Lock, ArrowRight, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ResetPasswordPage() {
@@ -26,12 +26,15 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="card p-6 sm:p-8 bg-white border border-gray-100 shadow-xl shadow-blue-950/5">
+    <div className="doctech-card p-7 sm:p-9 bg-white">
       <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
+        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1A4B8C] flex items-center justify-center mx-auto mb-3 shadow-xs">
+          <ShieldCheck size={24} />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
           {isRTL ? "تعيين كلمة مرور جديدة" : "Set New Password"}
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
           {isRTL
             ? "اختر كلمة مرور قوية لتأمين حساب عيادتك"
             : "Create a strong password to protect your clinic portal"}
@@ -40,45 +43,45 @@ export default function ResetPasswordPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">
+          <label className="block text-xs font-bold text-slate-700 mb-1.5">
             {isRTL ? "كلمة المرور الجديدة" : "New Password"}
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Lock className="doctech-input-icon" size={17} />
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4B8C]"
+              className="doctech-input"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">
+          <label className="block text-xs font-bold text-slate-700 mb-1.5">
             {isRTL ? "تأكيد كلمة المرور الجديدة" : "Confirm New Password"}
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Lock className="doctech-input-icon" size={17} />
             <input
               type="password"
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4B8C]"
+              className="doctech-input"
             />
           </div>
         </div>
 
         <button
           type="submit"
-          className="w-full py-2.5 px-4 rounded-lg bg-[#1A4B8C] text-white text-sm font-semibold hover:bg-blue-800 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-blue-900/10"
+          className="w-full mt-2 h-11 rounded-xl bg-[#1A4B8C] hover:bg-[#153E75] text-white text-sm font-bold shadow-md shadow-blue-900/15 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
         >
           <span>{isRTL ? "حفظ كلمة المرور وتسجيل الدخول" : "Save Password & Sign In"}</span>
-          <ArrowRight size={16} />
+          <ArrowRight size={16} className={isRTL ? "rotate-180" : ""} />
         </button>
       </form>
     </div>
