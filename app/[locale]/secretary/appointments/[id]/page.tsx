@@ -1,11 +1,12 @@
 ﻿import type { Metadata } from "next";
-export const metadata: Metadata = { title: "Details" };
-export default function Page({ params }: { params: { id: string } }) {
+export const metadata: Metadata = { title: "Appointment Details" };
+export default async function AppointmentDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>Details</h1>
-      <div className="card p-8 text-center">
-        <p style={{ color: "var(--color-text-muted)" }}>ID: {params.id}</p>
+      <h1 className="text-2xl font-bold text-gray-900">Appointment #{id} Details</h1>
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <p className="text-xs text-gray-600">Managing appointment details for ID: {id}</p>
       </div>
     </div>
   );
