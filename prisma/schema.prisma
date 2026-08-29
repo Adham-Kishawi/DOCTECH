@@ -1,0 +1,286 @@
+// DOCTECH - Multi-Tenant Clinic Management System
+// Prisma Schema with Supabase PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+// ==============================
+// MULTI-TENANT: Clinic (Tenant)
+// ==============================
+model Clinic {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  address     String?
+  logoUrl     String?
+  clerkOrgId  String   @unique // Clerk Organization ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doctors       Doctor[]
+  secretaries   Secretary[]
+  patients      Patient[]
+  appointments  Appointment[]
+  reports       Report[]
+  notifications Notification[]
+  conversations WhatsAppConversation[]
+
+  @@map("clinics")
+}
+
+// ==============================
+// USERS
+// ==============================
+model Doctor {
+  id          String   @id @default(cuid())
+  clerkUserId String   @unique
+  email       String   @unique
+  name        String
+  specialty   String?
+  avatarUrl   String?
+  clinicId    String
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  appointments  Appointment[]
+  reports       Report[]
+  notifications Notification[]
+  messages      InternalMessage[]
+
+  @@map("doctors")
+}
+
+model Secretary {
+  id           String          @id @default(cuid())
+  clerkUserId  String          @unique
+  email        String          @unique
+  name         String
+  avatarUrl    String?
+  status       SecretaryStatus @default(ACTIVE)
+  clinicId     String
+  clinic       Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  invitedAt    DateTime?
+  activatedAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  appointments  Appointment[]
+  notifications Notification[]
+  messages      InternalMessage[]
+
+  @@map("secretaries")
+}
+
+// ==============================
+// PATIENTS
+// ==============================
+model Patient {
+  id          String    @id @default(cuid())
+  name        String
+  phone       String
+  email       String?
+  dateOfBirth DateTime?
+  gender      Gender    @default(UNKNOWN)
+  address     String?
+  notes       String?
+  clinicId    String
+  clinic      Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  appointments Appointment[]
+  reports      Report[]
+  conversations WhatsAppConversation[]
+
+  @@map("patients")
+}
+
+// ==============================
+// APPOINTMENTS
+// ==============================
+model Appointment {
+  id           String            @id @default(cuid())
+  patientId    String
+  patient      Patient           @relation(fields: [patientId], references: [id])
+  doctorId     String
+  doctor       Doctor            @relation(fields: [doctorId], references: [id])
+  secretaryId  String?
+  secretary    Secretary?        @relation(fields: [secretaryId], references: [id])
+  clinicId     String
+  clinic       Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  date         DateTime
+  duration     Int               @default(30) // in minutes
+  status       AppointmentStatus @default(SCHEDULED)
+  type         String?
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("appointments")
+}
+
+// ==============================
+// REPORTS (Patient Messages / Inquiries)
+// ==============================
+model Report {
+  id           String       @id @default(cuid())
+  patientId    String
+  patient      Patient      @relation(fields: [patientId], references: [id])
+  doctorId     String
+  doctor       Doctor       @relation(fields: [doctorId], references: [id])
+  clinicId     String
+  clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  content      String       // Patient's message/report
+  triageNotes  String?      // Secretary's triage notes
+  doctorReview String?      // Doctor's medical review
+  replyMethod  ReplyMethod?
+  aiReply      String?      // AI-generated reply (if replyMethod = AI)
+  status       ReportStatus @default(PENDING)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("reports")
+}
+
+// ==============================
+// WHATSAPP
+// ==============================
+model WhatsAppConversation {
+  id         String    @id @default(cuid())
+  patientId  String
+  patient    Patient   @relation(fields: [patientId], references: [id])
+  clinicId   String
+  clinic     Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  waId       String    // WhatsApp phone number ID
+  status     WaStatus  @default(OPEN)
+  lastMessage String?
+  lastMessageAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  messages WhatsAppMessage[]
+
+  @@map("whatsapp_conversations")
+}
+
+model WhatsAppMessage {
+  id             String               @id @default(cuid())
+  conversationId String
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  from           MessageFrom
+  content        String
+  waMessageId    String?              // Meta's message ID
+  status         WaMessageStatus      @default(SENT)
+  sentAt         DateTime             @default(now())
+
+  @@map("whatsapp_messages")
+}
+
+// ==============================
+// INTERNAL COMMUNICATION
+// ==============================
+model InternalMessage {
+  id          String    @id @default(cuid())
+  doctorId    String?
+  doctor      Doctor?   @relation(fields: [doctorId], references: [id])
+  secretaryId String?
+  secretary   Secretary? @relation(fields: [secretaryId], references: [id])
+  content     String
+  isRead      Boolean   @default(false)
+  sentAt      DateTime  @default(now())
+
+  @@map("internal_messages")
+}
+
+// ==============================
+// NOTIFICATIONS
+// ==============================
+model Notification {
+  id          String           @id @default(cuid())
+  clinicId    String
+  clinic      Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctorId    String?
+  doctor      Doctor?          @relation(fields: [doctorId], references: [id])
+  secretaryId String?
+  secretary   Secretary?       @relation(fields: [secretaryId], references: [id])
+  type        NotificationType
+  title       String
+  body        String
+  isRead      Boolean          @default(false)
+  link        String?
+  createdAt   DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+// ==============================
+// ENUMS
+// ==============================
+enum SecretaryStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum ReportStatus {
+  PENDING
+  TRIAGED
+  REVIEWED
+  REPLIED
+  CLOSED
+}
+
+enum ReplyMethod {
+  HUMAN
+  AI
+}
+
+enum WaStatus {
+  OPEN
+  CLOSED
+}
+
+enum WaMessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum MessageFrom {
+  PATIENT
+  CLINIC
+  AI
+}
+
+enum NotificationType {
+  NEW_APPOINTMENT
+  APPOINTMENT_CANCELLED
+  NEW_REPORT
+  REPORT_REVIEWED
+  WHATSAPP_MESSAGE
+  SECRETARY_INVITATION
+  SYSTEM
+}
