@@ -1,70 +1,76 @@
 ﻿# 🏥 DOCTECH MVP — تقرير المشروع وحالة الإنجاز الشاملة (Brand Identity & Real-Time Ready)
 
-> **DOCTECH:** نظام سحابي متكامل لإدارة العيادات والمراكز الطبية المتعددة (Multi-Tenant Clinic Management OS) مصمم ومبني لإعادة البيع لأكثر من طبيب وعيادة.
+> **DOCTECH:** نظام سحابي متكامل لإدارة العيادات والمراكز الطبية المتعددة (Multi-Tenant Clinic Management OS) مصمم ومبني لإعادة البيع والتسليم المباشر للأطباء والعيادات.
 
 ---
 
-## 📌 1. نظرة عامة على المشروع (Project Overview)
+## 🔑 1. بيانات الحسابات الجاهزة للتجربة (Demo & Admin Credentials)
 
-* **المستودع الرسمي (GitHub):** [https://github.com/Adham-Kishawi/DOCTECH](https://github.com/Adham-Kishawi/DOCTECH)
-* **المسار في بيئة العمل:** `D:\FULL-PROJECTS\DOCTECK` (محدث ومتزامن 100%)
-* **الحالة الحالية:** إنجاز **الـ 33 شاشة كاملة** مع تطبيق الهوية البصرية الرسمية المتجهة (Vector Logo)، دعم الـ Dark Mode الكامل، حماية المسارات (Auth Guards)، ونظام التواصل والاستدعاء اللحظي بين الطبيب والسكرتيرة (Real-Time Summon & Comms).
+### 🩺 أ. حساب الطبيب (Doctor / Admin Lead):
+* **البريد الإلكتروني:** `doctor@doctech.com`
+* **كلمة المرور:** `password123` (أو زر 1-Click Doctor Demo)
+* **الصلاحيات:** وصول كامل لإدارة العيادة، الكشوفات، تقارير المرضى، الروشتات، دعوة وإدارة السكرتارية، واستدعاء الاستقبال.
+* **الرابط المباشر:** [http://localhost:3000/en/doctor/dashboard](http://localhost:3000/en/doctor/dashboard)
 
----
-
-## 🎨 2. تطبيق الهوية البصرية الرسمية والـ Dark Mode (Brand Guidelines PDF)
-
-تم تطبيق جميع الألوان والمقاييس من ملف الهوية البصرية الرسمي:
-* **DOCTECH BLUE:** `#3368A0` (لون العلامة الرئيسي)
-* **DARK BLUE:** `#285783` (الأزرار واللمسات النشطة)
-* **HEALTHCARE TEAL:** `#36ADA3` (العقدة الطبية ولمسات الاستقبال)
-* **SOFT ACCENT:** `#C8DFDB` (وسوم وحواف ناعمة)
-* **WARM SUPPORT:** `#F2EFE7` (خلفية دافئة)
-* **اللوجو الرسمي المتجهي (Connected Workflow):** بناء مكون `<Logo />` بمتجهات SVG مطابقة للأشكال الثلاثية المنحنية مع العقدة الخضراء المتصلة وكتابة `DOCTECH`.
-* **الوضع الليلي (Dark Mode):** إضافة مكون `ThemeToggle` مع دعم كامل للمظهر الداكن (`#0B131E`, `#131E2E`) في كافة الكروت والشاشات.
+### 👩‍💼 ب. حساب السكرتيرة (Secretary / Front Desk):
+* **البريد الإلكتروني:** `secretary@doctech.com`
+* **كلمة المرور:** `password123` (أو زر 1-Click Secretary Demo)
+* **الصلاحيات:** حجز وإدارة المواعيد CRUD، سجل المرضى EMR، فرز التقارير، محادثات الواتساب، والتواصل مع الطبيب.
+* **الرابط المباشر:** [http://localhost:3000/en/secretary/dashboard](http://localhost:3000/en/secretary/dashboard)
 
 ---
 
-## 🔒 3. حماية المسارات والجلسات (Auth Guard & Session Security)
+## 🎨 2. تطبيق الهوية البصرية واللوجو المعتمد (Brand Guidelines)
 
-* **منع الدخول بدون تسجيل دخول:** تم تفعيل `AuthGuard` على مسارات `/doctor/*` و `/secretary/*`. أي محاولة لدخول الداشبورد بدون جلسة نشطة يتم تحويلها تلقائياً إلى صفحة `/[locale]/sign-in`.
-* **دخول تجريبي منضبط (1-Click Demo Sandbox):** أزرار الدخول السريع في صفحة تسجيل الدخول تقوم بإنشاء جلسة رسمية صالحة أولاً قبل التحويل.
-* **تسجيل الخروج (Sign Out):** زر تسجيل الخروج في قائمة المستخدم `UserMenu` يقوم بمسح الجلسة والكوكيز وإعادة التوجيه إلى صفحة الدخول.
-
----
-
-## ⚡ 4. نظام التواصل والاستدعاء اللحظي (Human Logic Real-Time System)
-
-تم بناء نظام تواصل لحظي (`BroadcastChannel` + Web Audio API):
-1. **استدعاء الطبيب للسكرتيرة (Doctor Summons Secretary):**
-   * زر استدعاء عاجل `🚨 استدعاء السكرتيرة` في رأس شاشة الطبيب.
-   * ظهور نافذة استدعاء عاجلة فوراً مع **جرس تنبيه صوتي (Audio Chime)** في شاشة السكرتيرة.
-2. **تنبيه السكرتيرة للطبيب (Secretary Discreet Note to Doctor):**
-   * إرسال ملاحظة هادئة تظهر كـ **شريط إشعار علوي راقٍ ومخفف** في شاشة الطبيب دون إصدار أي صوت مزعج للحفاظ على هدوء غرفة الكشف وراحة المريض.
-3. **التزامن اللحظي للرسائل (Live Chat Sync):**
-   * أي رسالة ترسل في شات الطبيب تظهر في نفس اللحظة في شات السكرتيرة دون الحاجة لعمل Refresh.
+* **اللوجو الرسمي (Exact Vector SVG):** تم رسم وبناء مكون `<Logo />` بمتجهات SVG مطابقة للأشكال الثلاثية المنحنية مع العقدة الخضراء المتصلة وكتابة `DOCTECH` بدقة متناهية.
+* **الألوان الرسمية المعتمدة:**
+  * `DOCTECH BLUE`: `#3368A0`
+  * `DARK BLUE`: `#285783`
+  * `HEALTHCARE TEAL`: `#36ADA3`
+  * `SOFT ACCENT`: `#C8DFDB`
+  * `WARM SUPPORT`: `#F2EFE7`
+* **الوضع الليلي (Dark Mode):** دعم كامل للـ Dark Mode مع زر التبديل `ThemeToggle`.
 
 ---
 
-## 🧪 5. تقرير الاختبار الشامل (QA Report)
+## 🔄 3. تعديل دورة العمل (B2B Clinic Handover Workflow)
 
-```text
-==========================================
-  DOCTECH FULL ROUTE & UI AUDIT TESTER   
-==========================================
-Total Routes Tested: 58 (29 EN + 29 AR)
-Passed: 58 (100% ✅)
-Failed: 0 (0% ❌)
-Production Build: ✅ 0 Errors / 0 Warnings
-GitHub Repository: ✅ All changes pushed to origin/main
-==========================================
+* **إلغاء التسجيل العام للأطباء (Public Doctor Sign-Up):** بما أن نموذج العمل يعتمد على تسليم النظام جاهزاً للعيادة بعد تزويد حساب الطبيب، تم إلغاء التسجيل المفتوح وتوجيه الأطباء مباشرة لتسجيل الدخول.
+* **إدارة السكرتارية من الداخل:** الطبيب يقوم بدعوة وتفعيل حسابات السكرتارية من داخل لوحة التحكم (`/doctor/team/invite`).
+
+---
+
+## 🗄️ 4. كيفية إضافة طبيب جديد في قاعدة البيانات (Adding a Doctor to DB)
+
+يمكنك إضافة طبيب وعيادة جديدة بأحد الطرق التالية:
+
+### الطريقة 1: عبر سكريبت الـ CLI السريع
+قم بتشغيل الأمر التالي في التيرمينال:
+```bash
+node scripts/seed-doctor.mjs --name "Dr. Tarek Omar" --email "tarek@clinic.com" --specialty "Cardiology" --clinic "Al-Amal Clinic"
+```
+
+### الطريقة 2: عبر لوحة تحكم Supabase Dashboard (SQL Editor)
+1. افتح مشروعك على Supabase.
+2. اذهب إلى **SQL Editor** ونفّذ الاستعلام التالي:
+```sql
+-- 1. إنشاء العيادة
+INSERT INTO "Clinic" ("id", "name", "slug", "phone", "address")
+VALUES ('cln-001', 'Al-Amal Specialized Clinic', 'al-amal', '+20 100 123 4567', 'Cairo, Egypt');
+
+-- 2. إنشاء حساب الطبيب المالك
+INSERT INTO "User" ("id", "email", "name", "role", "clinicId")
+VALUES ('usr-doc-001', 'doctor@doctech.com', 'Dr. Ahmed Hossam', 'DOCTOR', 'cln-001');
 ```
 
 ---
 
-## 🌐 6. الروابط المباشرة للتجربة والمعاينة:
+## 📋 5. قائمة المهام القادمة بالترتيب (Prioritized Roadmap TO-DO List)
 
-* **تسجيل الدخول والتجربة الفورية:** [http://localhost:3000/en/sign-in](http://localhost:3000/en/sign-in)
-* **بوابة الطبيب:** [http://localhost:3000/en/doctor/dashboard](http://localhost:3000/en/doctor/dashboard)
-* **بوابة السكرتيرة:** [http://localhost:3000/en/secretary/dashboard](http://localhost:3000/en/secretary/dashboard)
-* **النسخة العربية الكاملة (RTL):** [http://localhost:3000/ar/doctor/dashboard](http://localhost:3000/ar/doctor/dashboard)
+1. [x] **المرحلة 1:** بناء وتصميم الـ 33 شاشة كاملة (Doctor + Secretary + Auth).
+2. [x] **المرحلة 2:** تطبيق الهوية البصرية الرسمية (Vector Logo + Brand Colors + Dark Mode).
+3. [x] **المرحلة 3:** حماية المسارات (Auth Guards) ونظام الاستدعاء والتواصل اللحظي بالمنطق البشري.
+4. [ ] **المرحلة 4 (التالية):** تفعيل قاعدة البيانات الحقيقية ومزامنة الـ CRUD (Supabase + Prisma).
+5. [ ] **المرحلة 5:** الربط مع واتساب السحابي الحقيقي (Meta WhatsApp Business Cloud Webhooks).
+6. [ ] **المرحلة 6:** بناء وتهيئة الوكيل الذكي (AI Clinical & Booking Agent) واختيار النموذج الأنسب (Hermes 3 / Gemini 2.5 Flash / DeepSeek).
+7. [ ] **المرحلة 7:** الاختبار النهائي والنشر السحابي على Vercel.

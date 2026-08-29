@@ -1,180 +1,42 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { User, Mail, Lock, Phone, Stethoscope, ArrowRight, Building2 } from "lucide-react";
-import { toast } from "sonner";
+import { useParams } from "next/navigation";
+import { ShieldCheck, ArrowLeft, Building2 } from "lucide-react";
 
 export default function SignUpPage() {
   const params = useParams();
-  const router = useRouter();
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    specialty: "General Medicine / طب عام",
-    password: "",
-    clinicName: "",
-  });
-  const [loading, setLoading] = useState(false);
-
-  const specialties = [
-    "General Medicine / طب عام",
-    "Dentistry / طب الأسنان",
-    "Dermatology / الجلدية",
-    "Cardiology / أمراض القلب",
-    "Pediatrics / طب الأطفال",
-    "Orthopedics / العظام",
-    "Ophthalmology / العيون",
-    "Psychiatry / الطب النفسي",
-    "Obstetrics & Gynecology / النساء والتوليد",
-  ];
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    toast.success(isRTL ? "تم إنشاء الحساب بنجاح! انتقل لإعداد العيادة." : "Account created! Proceed to Clinic Setup.");
-    router.push(`/${locale}/clinic-setup`);
-  };
-
   return (
-    <div className="doctech-card p-7 sm:p-9 bg-white">
-      <div className="text-center mb-6">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-[#1A4B8C] border border-blue-100 mb-2">
-          <Stethoscope size={13} />
-          {isRTL ? "تسجيل ممارس طبي جديد" : "Medical Practitioner Registration"}
+    <div className="doctech-card p-8 sm:p-10 bg-white dark:bg-[#131E2E] text-center space-y-6">
+      <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#3368A0] dark:text-[#4B85C5] flex items-center justify-center mx-auto border border-blue-100 dark:border-slate-800">
+        <Building2 size={32} />
+      </div>
+
+      <div className="space-y-2">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-50 dark:bg-teal-950/60 text-[#36ADA3] border border-[#36ADA3]/30 uppercase tracking-wider">
+          <ShieldCheck size={13} />
+          {isRTL ? "نظام إدارة العيادات الخاص" : "Managed Clinic Platform"}
         </span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          {isRTL ? "إنشاء حساب طبيب" : "Doctor Sign Up"}
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white">
+          {isRTL ? "تسليم حسابات الأطباء" : "Clinic Handover Only"}
         </h1>
-        <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-medium leading-relaxed">
           {isRTL
-            ? "انضم إلى DOCTECH لإدارة عيادتك وفريقك ومواعيدك بذكاء"
-            : "Set up your medical practice with DOCTECH"}
+            ? "يتم تجهيز وتسليم حسابات الأطباء والعيادات مباشرة عبر إدارة DOCTECH. بعد استلام حسابك، يمكنك دعوة وإنشاء حسابات السكرتارية من داخل لوحة التحكم."
+            : "DOCTECH accounts are pre-provisioned for medical practices. Once onboarded, doctors can invite & manage secretaries directly from the dashboard."}
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-            {isRTL ? "الاسم الكامل (دكتور/ة)" : "Full Doctor Name"}
-          </label>
-          <div className="relative">
-            <User className="doctech-input-icon" size={17} />
-            <input
-              type="text"
-              required
-              value={formData.fullName}
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              placeholder={isRTL ? "د. أحمد حسام" : "Dr. Sarah Mitchell"}
-              className="doctech-input"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-            {isRTL ? "اسم العيادة المقترح" : "Clinic / Practice Name"}
-          </label>
-          <div className="relative">
-            <Building2 className="doctech-input-icon" size={17} />
-            <input
-              type="text"
-              required
-              value={formData.clinicName}
-              onChange={(e) => setFormData({ ...formData, clinicName: e.target.value })}
-              placeholder={isRTL ? "عيادات النور التخصصية" : "Al-Noor Medical Center"}
-              className="doctech-input"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-            {isRTL ? "التخصص الطبي" : "Medical Specialty"}
-          </label>
-          <select
-            value={formData.specialty}
-            onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
-            className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4B8C]"
-          >
-            {specialties.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              {isRTL ? "البريد الإلكتروني" : "Email Address"}
-            </label>
-            <div className="relative">
-              <Mail className="doctech-input-icon" size={17} />
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="doctor@clinic.com"
-                className="doctech-input"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              {isRTL ? "رقم الهاتف" : "Phone Number"}
-            </label>
-            <div className="relative">
-              <Phone className="doctech-input-icon" size={17} />
-              <input
-                type="tel"
-                required
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+20 100 000 0000"
-                className="doctech-input"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-            {isRTL ? "كلمة المرور" : "Password"}
-          </label>
-          <div className="relative">
-            <Lock className="doctech-input-icon" size={17} />
-            <input
-              type="password"
-              required
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="••••••••"
-              className="doctech-input"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full mt-3 h-11 rounded-xl bg-[#1A4B8C] hover:bg-[#153E75] text-white text-sm font-bold shadow-md shadow-blue-900/15 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+      <div className="pt-2">
+        <Link
+          href={`/${locale}/sign-in`}
+          className="w-full h-11 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white text-sm font-bold shadow-md shadow-blue-900/15 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
         >
-          <span>{isRTL ? "متابعة لإعداد العيادة" : "Continue to Clinic Setup"}</span>
-          <ArrowRight size={16} className={isRTL ? "rotate-180" : ""} />
-        </button>
-      </form>
-
-      <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500 font-medium">
-        <span>{isRTL ? "لديك حساب بالفعل؟" : "Already have an account?"} </span>
-        <Link href={`/${locale}/sign-in`} className="font-bold text-[#1A4B8C] hover:underline">
-          {isRTL ? "تسجيل الدخول" : "Sign In"}
+          <ArrowLeft size={16} className={isRTL ? "rotate-180" : ""} />
+          <span>{isRTL ? "العودة إلى تسجيل الدخول" : "Return to Sign In"}</span>
         </Link>
       </div>
     </div>
