@@ -1,4 +1,12 @@
-"use client";
+import fs from "node:fs";
+import path from "node:path";
+
+const base = "D:\\FULL-PROJECTS\\DOCTECH\\app\\[locale]\\doctor";
+
+// ============================================
+// 1. DOCTOR APPOINTMENTS (Filterable List & Drawer)
+// ============================================
+const appointments = `"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -69,7 +77,7 @@ export default function DoctorAppointmentsPage() {
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
-            {isRTL ? `إجمالي المعروض: ${filtered.length}` : `Total Listed: ${filtered.length}`}
+            {isRTL ? \`إجمالي المعروض: \${filtered.length}\` : \`Total Listed: \${filtered.length}\`}
           </span>
         </div>
       </div>
@@ -98,11 +106,11 @@ export default function DoctorAppointmentsPage() {
             <button
               key={tab.id}
               onClick={() => setFilterStatus(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={\`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap \${
                 filterStatus === tab.id
                   ? "bg-[#1A4B8C] text-white shadow-xs"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+              }\`}
             >
               {isRTL ? tab.labelAr : tab.labelEn}
             </button>
@@ -132,11 +140,11 @@ export default function DoctorAppointmentsPage() {
                   <div
                     key={apt.id}
                     onClick={() => setSelectedApt(apt)}
-                    className={`p-4 transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                    className={\`p-4 transition-all cursor-pointer flex items-center justify-between gap-3 \${
                       isSelected
                         ? "bg-blue-50/70 border-r-4 rtl:border-r-0 rtl:border-l-4 border-[#1A4B8C]"
                         : "hover:bg-slate-50"
-                    }`}
+                    }\`}
                   >
                     <div className="flex items-center gap-3.5">
                       <div className="w-16 h-12 rounded-xl bg-slate-100 flex flex-col items-center justify-center text-center shrink-0 border border-slate-200/60">
@@ -161,7 +169,7 @@ export default function DoctorAppointmentsPage() {
 
                     <div className="flex items-center gap-3">
                       <span
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                        className={\`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider \${
                           apt.status === "confirmed"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : apt.status === "completed"
@@ -169,7 +177,7 @@ export default function DoctorAppointmentsPage() {
                             : apt.status === "cancelled"
                             ? "bg-red-50 text-red-600 border border-red-200"
                             : "bg-blue-50 text-blue-700 border border-blue-200"
-                        }`}
+                        }\`}
                       >
                         {apt.status}
                       </span>
@@ -227,7 +235,7 @@ export default function DoctorAppointmentsPage() {
 
               <div className="pt-3 border-t border-slate-100">
                 <Link
-                  href={`/${locale}/doctor/reports/1`}
+                  href={\`/\${locale}/doctor/reports/1\`}
                   className="w-full h-10 rounded-xl bg-[#1A4B8C] hover:bg-[#153E75] text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
                 >
                   <FileText size={15} />
@@ -244,4 +252,7 @@ export default function DoctorAppointmentsPage() {
       </div>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync(path.join(base, "appointments", "page.tsx"), appointments, "utf8");
+console.log("doctor/appointments updated");
