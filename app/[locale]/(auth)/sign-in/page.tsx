@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Lock, Mail, ArrowRight, Stethoscope, UserCheck, Eye, EyeOff, Sparkles } from "lucide-react";
+import { Lock, Mail, ArrowRight, Stethoscope, UserCheck, Eye, EyeOff, KeyRound } from "lucide-react";
 import { setSession } from "@/stores/authStore";
 import { toast } from "sonner";
 
@@ -75,7 +75,7 @@ export default function SignInPage() {
       {/* 1-Click Demo Sandbox */}
       <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-2xl">
         <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#3368A0] dark:text-[#4B85C5] mb-2.5">
-          <Sparkles size={13} className="text-[#36ADA3]" />
+          <KeyRound size={13} className="text-[#3368A0] dark:text-[#4B85C5]" />
           <span>{isRTL ? "تجربة فورية بنقرة واحدة (Prototype Demo)" : "1-Click Prototype Demo"}</span>
         </div>
         <div className="grid grid-cols-2 gap-2.5">

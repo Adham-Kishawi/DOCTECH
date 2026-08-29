@@ -1,4 +1,4 @@
-﻿import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 export default async function HomePage({
@@ -7,19 +7,14 @@ export default async function HomePage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const { userId, sessionClaims } = await auth();
-
-  if (!userId) {
-    redirect(`/${locale}/sign-in`);
-  }
-
-  const role = (sessionClaims?.metadata as { role?: string })?.role;
+  const cookieStore = await cookies();
+  const role = cookieStore.get("doctech_role")?.value;
 
   if (role === "doctor") {
     redirect(`/${locale}/doctor/dashboard`);
   } else if (role === "secretary") {
     redirect(`/${locale}/secretary/dashboard`);
   } else {
-    redirect(`/${locale}/role-selection`);
+    redirect(`/${locale}/sign-in`);
   }
 }
