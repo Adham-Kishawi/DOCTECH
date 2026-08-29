@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { MessageCircle, ArrowLeft, Send, Paperclip, CheckCheck, User, Calendar, Plus } from "lucide-react";
+import { ArrowLeft, Send, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 interface Message {

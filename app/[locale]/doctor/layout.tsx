@@ -1,14 +1,20 @@
-﻿"use client";
+"use client";
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard, Calendar, CalendarCheck, BarChart2,
-  MessageSquare, Bell, Users, User, Stethoscope, HeartPulse
+  MessageSquare, Bell, Users, User, BellRing, Stethoscope
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/shared/Logo";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { DiscreetAlert } from "@/components/shared/DiscreetAlert";
+import { realtimeBus } from "@/lib/realtimeService";
+import { toast } from "sonner";
 
 const navItems = [
   { href: "dashboard", labelEn: "Dashboard", labelAr: "لوحة التحكم", icon: LayoutDashboard },
@@ -25,95 +31,116 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
   const locale = pathname.split("/")[1] || "en";
   const isRTL = locale === "ar";
 
+  const handleSummonSecretary = () => {
+    realtimeBus.publish({
+      type: "SUMMON_SECRETARY",
+      payload: {
+        doctorName: "Dr. Clinical Lead",
+        room: "Examination Room #1",
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        urgent: true,
+      },
+    });
+    toast.info(isRTL ? "🚨 تم إرسال جرس وتنبيه استدعاء السكرتيرة فوراً!" : "🚨 Secretary summoned to Exam Room #1!");
+  };
+
   return (
-    <div className="flex min-h-screen bg-[#F7F5F0]">
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 flex flex-col z-30 bg-white border-gray-200/80 shadow-sm",
-          isRTL ? "right-0 border-l" : "left-0 border-r"
-        )}
-        style={{ width: "200px" }}
-      >
-        {/* Brand */}
-        <div className="p-4 border-b border-gray-100 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#1A4B8C] text-white flex items-center justify-center shadow-sm">
-            <HeartPulse size={18} />
-          </div>
-          <div>
-            <span className="text-sm font-extrabold text-gray-900 block leading-tight">DOCTECH</span>
-            <span className="text-[10px] font-semibold text-blue-800 uppercase tracking-wider block">
-              Doctor View
-            </span>
-          </div>
-        </div>
+    <AuthGuard allowedRole="doctor">
+      <div className="flex min-h-screen bg-[#F8FAFC] dark:bg-[#0B131E]">
+        {/* Discreet Reception Alert */}
+        <DiscreetAlert />
 
-        {/* Navigation */}
-        <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-          {navItems.map(({ href, labelEn, labelAr, icon: Icon }) => {
-            const isActive = pathname.includes(`/doctor/${href}`);
-            return (
-              <Link
-                key={href}
-                href={`/${locale}/doctor/${href}`}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
-                  isActive
-                    ? "bg-[#1A4B8C] text-white shadow-sm shadow-blue-950/10"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                )}
+        {/* Sidebar */}
+        <aside
+          className={cn(
+            "fixed inset-y-0 flex flex-col z-30 bg-white dark:bg-[#131E2E] border-slate-200/80 dark:border-slate-800 shadow-xs",
+            isRTL ? "right-0 border-l" : "left-0 border-r"
+          )}
+          style={{ width: "210px" }}
+        >
+          {/* Brand */}
+          <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <Logo size={32} />
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+            {navItems.map(({ href, labelEn, labelAr, icon: Icon }) => {
+              const isActive = pathname.includes(`/doctor/${href}`);
+              return (
+                <Link
+                  key={href}
+                  href={`/${locale}/doctor/${href}`}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all",
+                    isActive
+                      ? "bg-[#3368A0] text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                  )}
+                >
+                  <Icon size={16} className={isActive ? "text-white" : "text-slate-400"} />
+                  <span>{isRTL ? labelAr : labelEn}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Profile */}
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800">
+            <Link
+              href={`/${locale}/doctor/profile`}
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all",
+                pathname.includes("/doctor/profile")
+                  ? "bg-[#3368A0] text-white"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+              )}
+            >
+              <User size={16} />
+              <span>{isRTL ? "الملف الشخصي" : "Profile"}</span>
+            </Link>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <div
+          className="flex-1 flex flex-col min-w-0"
+          style={{ [isRTL ? "marginRight" : "marginLeft"]: "210px" }}
+        >
+          {/* Top Bar */}
+          <header className="sticky top-0 z-20 flex items-center justify-between px-6 h-15 bg-white/90 dark:bg-[#131E2E]/90 backdrop-blur border-b border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                {isRTL ? "د. أحمد حسام — عيادات النور التخصصية" : "Dr. Clinical Lead — Medical Practice"}
+              </span>
+
+              {/* URGENT SUMMON BUTTON */}
+              <button
+                onClick={handleSummonSecretary}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm hover:shadow-red-500/20 active:scale-95 transition-all cursor-pointer"
+                title="Immediately summon secretary to examination room"
               >
-                <Icon size={16} className={isActive ? "text-white" : "text-gray-400"} />
-                <span>{isRTL ? labelAr : labelEn}</span>
-              </Link>
-            );
-          })}
-        </nav>
+                <BellRing size={14} className="animate-pulse" />
+                <span>{isRTL ? "استدعاء السكرتيرة" : "Summon Secretary"}</span>
+              </button>
+            </div>
 
-        {/* Profile */}
-        <div className="p-3 border-t border-gray-100">
-          <Link
-            href={`/${locale}/doctor/profile`}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
-              pathname.includes("/doctor/profile")
-                ? "bg-[#1A4B8C] text-white"
-                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-            )}
-          >
-            <User size={16} />
-            <span>{isRTL ? "الملف الشخصي" : "Profile"}</span>
-          </Link>
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <LanguageSwitcher />
+              <UserMenu
+                name={isRTL ? "د. أحمد حسام" : "Dr. Clinical Lead"}
+                role="Doctor"
+                email="doctor@doctech.com"
+                color="#3368A0"
+              />
+            </div>
+          </header>
+
+          {/* Page Content */}
+          <main className="flex-1 p-6 overflow-auto">{children}</main>
         </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div
-        className="flex-1 flex flex-col min-w-0"
-        style={{ [isRTL ? "marginRight" : "marginLeft"]: "200px" }}
-      >
-        {/* Top Bar */}
-        <header className="sticky top-0 z-20 flex items-center justify-between px-6 h-15 bg-white/90 backdrop-blur border-b border-gray-200/70 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-gray-800">
-              {isRTL ? "د. أحمد حسام — عيادات النور التخصصية" : "Dr. Clinical Lead — Medical Practice"}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <LanguageSwitcher />
-            <UserMenu
-              name={isRTL ? "د. أحمد حسام" : "Dr. Clinical Lead"}
-              role="Doctor"
-              email="doctor@doctech.com"
-              color="#1A4B8C"
-            />
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto">{children}</main>
       </div>
-    </div>
+    </AuthGuard>
   );
 }

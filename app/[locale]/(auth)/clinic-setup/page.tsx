@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Building2, MapPin, Phone, Clock, CheckCircle2, ArrowRight, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Building2, MapPin, Phone, CheckCircle2, ArrowRight, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ClinicSetupPage() {

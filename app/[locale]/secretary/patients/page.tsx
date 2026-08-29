@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Users, Plus, Search, Phone, Calendar, ArrowRight, MessageCircle, FileText } from "lucide-react";
+import { Users, Search, ArrowRight } from "lucide-react";
 
 interface Patient {
   id: string;

@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { 
-  FileText, ArrowLeft, Send, Sparkles, CheckCircle2, 
-  AlertTriangle, User, MessageCircle, Stethoscope, Clock, ShieldCheck
+  ArrowLeft, Send, Sparkles, AlertTriangle, MessageCircle, Stethoscope
 } from "lucide-react";
 import { toast } from "sonner";
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { UserCheck, Lock, User, Building2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";

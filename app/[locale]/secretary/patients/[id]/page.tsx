@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, User, Phone, CalendarCheck, MessageCircle, FileText, Clock, Plus } from "lucide-react";
+import { ArrowLeft, MessageCircle, Plus } from "lucide-react";
 
 export default function PatientDetailPage() {
   const params = useParams();

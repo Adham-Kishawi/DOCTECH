@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Mail, ArrowRight, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ForgotPasswordPage() {
   const params = useParams();
-  const router = useRouter();
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 

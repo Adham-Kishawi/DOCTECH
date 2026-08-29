@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { CalendarCheck, ArrowLeft, User, Phone, Calendar, Clock, Stethoscope, MessageCircle, Send } from "lucide-react";
+import { CalendarCheck, ArrowLeft, User, Phone, MessageCircle, Send } from "lucide-react";
 import { toast } from "sonner";
 
 export default function NewAppointmentPage() {

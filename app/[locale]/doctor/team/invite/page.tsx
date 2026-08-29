@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { UserPlus, ArrowLeft, Mail, User, ShieldCheck, Send } from "lucide-react";
+import { UserPlus, ArrowLeft, Mail, User, Send } from "lucide-react";
 import { toast } from "sonner";
 
 export default function InviteSecretaryPage() {

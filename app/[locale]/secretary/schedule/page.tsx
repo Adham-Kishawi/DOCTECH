@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Calendar, Clock, Plus, User, Stethoscope } from "lucide-react";
+import { Calendar, Plus } from "lucide-react";
 
 export default function SecretarySchedulePage() {
   const params = useParams();

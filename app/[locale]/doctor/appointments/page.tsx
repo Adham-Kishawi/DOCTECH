@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { 
-  CalendarCheck, Search, Filter, Clock, User, Phone, 
-  CheckCircle2, AlertCircle, XCircle, ChevronRight, FileText
+  CalendarCheck, Search, FileText
 } from "lucide-react";
 
 interface Appointment {

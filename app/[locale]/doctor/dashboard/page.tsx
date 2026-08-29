@@ -1,5 +1,5 @@
 ﻿import type { Metadata } from "next";
-import { CalendarCheck, FileText, Users, MessageSquare, Clock, ArrowUpRight, CheckCircle2, User } from "lucide-react";
+import { CalendarCheck, FileText, Users, MessageSquare, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = { title: "Doctor Dashboard" };
@@ -24,7 +24,13 @@ const pendingReports = [
   { id: "rep-103", patient: "Hany Youssef", summary: "Mild rash after taking antibiotics", urgency: "Medium", time: "2 hours ago" },
 ];
 
-export default function DoctorDashboardPage() {
+export default async function DoctorDashboardPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -44,7 +50,7 @@ export default function DoctorDashboardPage() {
 
         <div className="flex items-center gap-3">
           <Link
-            href="/en/doctor/reports/1"
+            href={`/${locale}/doctor/reports/1`}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[#1A4B8C] text-white hover:bg-blue-800 transition-colors shadow-md shadow-blue-900/10"
           >
             <FileText size={16} />
@@ -80,7 +86,7 @@ export default function DoctorDashboardPage() {
               <h2 className="text-base font-bold text-gray-900">Today&apos;s Schedule (Read-Only)</h2>
               <p className="text-xs text-gray-500">Managed by clinic secretary</p>
             </div>
-            <Link href="/en/doctor/appointments" className="text-xs font-semibold text-[#1A4B8C] hover:underline flex items-center gap-1">
+            <Link href={`/${locale}/doctor/appointments`} className="text-xs font-semibold text-[#1A4B8C] hover:underline flex items-center gap-1">
               View full list <ArrowUpRight size={14} />
             </Link>
           </div>
@@ -125,7 +131,7 @@ export default function DoctorDashboardPage() {
             {pendingReports.map((rep) => (
               <Link
                 key={rep.id}
-                href="/en/doctor/reports/1"
+                href={`/${locale}/doctor/reports/${rep.id}`}
                 className="block p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all"
               >
                 <div className="flex items-center justify-between mb-1">

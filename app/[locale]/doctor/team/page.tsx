@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Users, UserPlus, Shield, CheckCircle2, Clock, Mail, Phone, MoreHorizontal } from "lucide-react";
+import { Users, UserPlus, Clock, Mail, Phone } from "lucide-react";
 
 export default function DoctorTeamPage() {
   const params = useParams();

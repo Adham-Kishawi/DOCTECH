@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { Calendar, Clock, ChevronLeft, ChevronRight, User, Stethoscope, ShieldCheck } from "lucide-react";
+import { Calendar, Clock } from "lucide-react";
 
 interface Slot {
   id: string;

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { MessageCircle, Search, Clock, CheckCheck, User, ArrowRight } from "lucide-react";
+import { MessageCircle, Search, ArrowRight } from "lucide-react";
 
 interface Conversation {
   id: string;

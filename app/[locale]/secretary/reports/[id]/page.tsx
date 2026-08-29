@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { FileText, ArrowLeft, Send, Stethoscope, AlertTriangle, MessageCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SecretaryReportDetailPage() {

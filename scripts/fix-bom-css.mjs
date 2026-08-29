@@ -1,4 +1,6 @@
-@import "tailwindcss";
+import fs from "node:fs";
+
+const css = `@import "tailwindcss";
 
 :root {
   --doctech-blue: #3368A0;
@@ -107,3 +109,8 @@ body {
   right: auto;
   left: 0.875rem;
 }
+`;
+
+fs.writeFileSync("D:\\FULL-PROJECTS\\DOCTECK\\app\\globals.css", css, "utf8");
+fs.writeFileSync("D:\\FULL-PROJECTS\\DOCTECH\\app\\globals.css", css, "utf8");
+console.log("globals.css written strictly without BOM in UTF-8");

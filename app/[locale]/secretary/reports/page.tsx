@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { FileText, Search, AlertCircle, Clock, ChevronRight, Stethoscope, MessageCircle } from "lucide-react";
+import { FileText, Search, AlertCircle, ChevronRight } from "lucide-react";
 
 interface Report {
   id: string;

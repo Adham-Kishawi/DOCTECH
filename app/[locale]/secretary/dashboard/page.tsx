@@ -1,5 +1,5 @@
 ﻿import type { Metadata } from "next";
-import { CalendarCheck, FileText, Users, MessageCircle, Plus, Search, Clock, ArrowUpRight } from "lucide-react";
+import { CalendarCheck, FileText, Users, MessageCircle, Plus } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = { title: "Secretary Dashboard" };
@@ -18,7 +18,13 @@ const appointments = [
   { id: "4", time: "11:00 AM", patient: "Mohamed Ali", doctor: "Dr. Clinical Lead", phone: "+20 103 456 7890", status: "confirmed" },
 ];
 
-export default function SecretaryDashboardPage() {
+export default async function SecretaryDashboardPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -38,7 +44,7 @@ export default function SecretaryDashboardPage() {
 
         <div className="flex items-center gap-3">
           <Link
-            href="/en/secretary/appointments/new"
+            href={`/${locale}/secretary/appointments/new`}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#0891B2] text-white hover:bg-cyan-700 transition-colors shadow-md shadow-cyan-900/10"
           >
             <Plus size={16} />
@@ -73,7 +79,7 @@ export default function SecretaryDashboardPage() {
             <p className="text-xs text-gray-500">Live booking, status updating, and patient intake</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/en/secretary/appointments" className="text-xs font-semibold text-[#0891B2] hover:underline">
+            <Link href={`/${locale}/secretary/appointments`} className="text-xs font-semibold text-[#0891B2] hover:underline">
               View full management
             </Link>
           </div>
@@ -105,7 +111,7 @@ export default function SecretaryDashboardPage() {
                   {apt.status.toUpperCase()}
                 </span>
                 <Link
-                  href={`/en/secretary/appointments/${apt.id}`}
+                  href={`/${locale}/secretary/appointments/${apt.id}`}
                   className="text-xs font-semibold text-[#0891B2] hover:underline px-2 py-1 rounded hover:bg-cyan-50"
                 >
                   Edit →

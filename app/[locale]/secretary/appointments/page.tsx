@@ -3,10 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { 
-  CalendarCheck, Plus, Search, Filter, Clock, User, Phone, 
-  CheckCircle2, AlertCircle, XCircle, ChevronRight, Edit3, Trash2
-} from "lucide-react";
+import { CalendarCheck, Plus, Search, Edit3 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Appointment {
@@ -37,7 +34,9 @@ export default function SecretaryAppointmentsPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   const handleUpdateStatus = (id: string, newStatus: Appointment["status"]) => {
-    setAppointments(appointments.map(a => a.id === id ? { ...a, status: newStatus } : a));
+    setAppointments((currentAppointments) =>
+      currentAppointments.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
+    );
     toast.success(isRTL ? `تم تحديث حالة الموعد إلى ${newStatus}` : `Appointment status updated to ${newStatus}`);
   };
 
