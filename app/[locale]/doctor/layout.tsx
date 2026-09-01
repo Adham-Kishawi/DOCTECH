@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard, Calendar, CalendarCheck, BarChart2,
-  MessageSquare, Bell, Users, User, BellRing
+  MessageSquare, Bell, Users, User, BellRing, MessageCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/Logo";
@@ -24,6 +24,7 @@ const navItems = [
   { href: "communications", labelEn: "Internal Comms", labelAr: "التواصل الداخلي", icon: MessageSquare },
   { href: "notifications", labelEn: "Notifications", labelAr: "الإشعارات", icon: Bell },
   { href: "team", labelEn: "My Team", labelAr: "الفريق", icon: Users },
+  { href: "whatsapp", labelEn: "WhatsApp", labelAr: "واتساب", icon: MessageCircle },
 ];
 
 export default function DoctorLayout({ children }: { children: React.ReactNode }) {
