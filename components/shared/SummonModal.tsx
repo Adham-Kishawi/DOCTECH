@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { realtimeBus, RealtimeEvent } from "@/lib/realtimeService";
-import { BellRing, Stethoscope, CheckCircle, Volume2, X } from "lucide-react";
+import { BellRing, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export function SummonModal() {

@@ -1,9 +1,6 @@
-﻿import { createClient } from "@supabase/supabase-js";
+﻿import { supabase } from "./supabase";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://hpgnjcbhpkvflqatzigx.supabase.co";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_tu2bHuy_KF5LT-UKU3OJHg_N3y1NFsl";
-
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export { supabase };
 
 // ============================================
 // 1. APPOINTMENTS SERVICE
@@ -38,7 +35,7 @@ export async function fetchAppointments(): Promise<AppointmentItem[]> {
       ];
     }
 
-    return data.map((item: any) => ({
+    return data.map((item) => ({
       id: item.id,
       patientName: item.patients?.name || "Patient",
       patientPhone: item.patients?.phone || "",
@@ -85,7 +82,7 @@ export async function fetchPatients(): Promise<PatientItem[]> {
       ];
     }
 
-    return data.map((p: any) => ({
+    return data.map((p) => ({
       id: p.id,
       name: p.name,
       phone: p.phone,

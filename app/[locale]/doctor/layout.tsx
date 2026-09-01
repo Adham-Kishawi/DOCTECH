@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard, Calendar, CalendarCheck, BarChart2,
-  MessageSquare, Bell, Users, User, BellRing, Stethoscope
+  MessageSquare, Bell, Users, User, BellRing
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/Logo";

@@ -74,6 +74,11 @@ class RealtimeBus {
       osc2.start(now);
       osc1.stop(now + 0.8);
       osc2.stop(now + 0.8);
+
+      // Close the AudioContext to release resources once playback finishes
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 1000);
     } catch (e) {
       console.warn("Audio chime autoplay prevented or unsupported", e);
     }
