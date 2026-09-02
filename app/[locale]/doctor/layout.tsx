@@ -9,8 +9,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/Logo";
 import { UserMenu } from "@/components/layout/UserMenu";
-import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
-import { ThemeToggle } from "@/components/shared/ThemeToggle";
+// import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
+// import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { DiscreetAlert } from "@/components/shared/DiscreetAlert";
 import { realtimeBus } from "@/lib/realtimeService";

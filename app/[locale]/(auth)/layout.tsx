@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { Logo } from "@/components/shared/Logo";
-import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
-import { ThemeToggle } from "@/components/shared/ThemeToggle";
+// import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
+// import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { ShieldCheck } from "lucide-react";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
