@@ -107,3 +107,60 @@ body {
   right: auto;
   left: 0.875rem;
 }
+
+/* ==============================
+   RESPONSIVE UTILITIES
+   ============================== */
+
+/* Bottom sheet slide-up animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Hide scrollbar for horizontal scrollable containers */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area viewport support for notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Extra-small breakpoint utility */
+@media (min-width: 480px) {
+  .xs\:inline {
+    display: inline !important;
+  }
+  .xs\:hidden {
+    display: none !important;
+  }
+}
+
+/* Default: hide xs:inline, show xs:hidden */
+@media (max-width: 479px) {
+  .xs\:inline {
+    display: none !important;
+  }
+  .xs\:hidden {
+    display: inline !important;
+  }
+}
+
