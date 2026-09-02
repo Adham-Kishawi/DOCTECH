@@ -128,8 +128,8 @@ export default function SecretaryLayout({ children }: { children: React.ReactNod
             </div>
 
             <div className="flex items-center gap-3">
-              <ThemeToggle />
-              <LanguageSwitcher />
+              {/* <ThemeToggle /> */}
+              {/* <LanguageSwitcher /> */}
               <UserMenu
                 name={isRTL ? "سارة جنكينز" : "Sarah Jenkins"}
                 role="Secretary"

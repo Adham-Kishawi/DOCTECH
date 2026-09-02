@@ -126,8 +126,8 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
             </div>
 
             <div className="flex items-center gap-3">
-              <ThemeToggle />
-              <LanguageSwitcher />
+              {/* <ThemeToggle /> */}
+              {/* <LanguageSwitcher /> */}
               <UserMenu
                 name={isRTL ? "د. أحمد حسام" : "Dr. Clinical Lead"}
                 role="Doctor"
