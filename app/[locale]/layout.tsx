@@ -16,6 +16,11 @@ export const metadata: Metadata = {
     template: "%s | DOCTECH",
   },
   description: "Professional multi-tenant clinic management system for doctors and secretaries.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default async function LocaleLayout({
