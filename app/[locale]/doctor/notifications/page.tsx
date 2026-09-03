@@ -1,75 +1,165 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
-import { Bell, CalendarCheck, FileText, MessageCircle, ShieldCheck, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  Bell, CalendarCheck, FileText, MessageCircle, ShieldCheck, Check, MessageSquare, Bot
+} from "lucide-react";
+import { fetchNotifications, markAllNotificationsRead, SystemNotification } from "@/lib/notificationService";
+import { realtimeBus, RealtimeEvent } from "@/lib/realtimeService";
 
 export default function DoctorNotificationsPage() {
   const params = useParams();
+  const router = useRouter();
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [items, setItems] = useState([
-    { id: "1", title: "Urgent Patient Report Triaged", desc: "Patient Kareem Tarek submitted a high fever report requiring review.", time: "15 mins ago", icon: FileText, unread: true, color: "text-red-600 bg-red-50" },
-    { id: "2", title: "New Appointment Booked", desc: "Secretary booked follow-up consultation for Ahmed Hassan at 09:00 AM.", time: "1 hour ago", icon: CalendarCheck, unread: true, color: "text-blue-600 bg-blue-50" },
-    { id: "3", title: "WhatsApp Message Received", desc: "Nouran Mahmoud sent lab report image via clinic WhatsApp number.", time: "2 hours ago", icon: MessageCircle, unread: false, color: "text-emerald-600 bg-emerald-50" },
-    { id: "4", title: "System Security Health Check", desc: "All patient database records backed up and encrypted successfully.", time: "Yesterday", icon: ShieldCheck, unread: false, color: "text-slate-600 bg-slate-100" },
-  ]);
+  const [items, setItems] = useState<SystemNotification[]>([]);
 
-  const markAllRead = () => {
-    setItems(items.map((i) => ({ ...i, unread: false })));
+  useEffect(() => {
+    async function load() {
+      try {
+        const notifs = await fetchNotifications("doctor");
+        setItems(notifs);
+      } catch (e) {
+        console.warn("Failed loading doctor notifications:", e);
+      }
+    }
+    load();
+  }, []);
+
+  // Realtime updates
+  useEffect(() => {
+    const unsub = realtimeBus.subscribe((event: RealtimeEvent) => {
+      if (event.type === "NOTIFICATION_RECEIVED") {
+        const p = event.payload;
+        const newNotif: SystemNotification = {
+          id: p.id,
+          clinicId: "cln-001",
+          role: "doctor",
+          type: (p.type as SystemNotification["type"]) || "SYSTEM",
+          title: p.title,
+          titleAr: p.title,
+          body: p.body,
+          bodyAr: p.body,
+          time: "Just now",
+          isRead: false,
+          link: "communications",
+          createdAt: p.createdAt,
+        };
+        setItems((prev) => [newNotif, ...prev]);
+      } else if (event.type === "CHAT_MESSAGE") {
+        const msg = event.payload;
+        if (msg.senderRole === "secretary") {
+          const newNotif: SystemNotification = {
+            id: `notif-chat-${msg.id}`,
+            clinicId: "cln-001",
+            role: "doctor",
+            type: "INTERNAL_MESSAGE",
+            title: `Direct message from ${msg.senderName}`,
+            titleAr: `رسالة مباشرة من ${msg.senderName}`,
+            body: msg.text,
+            bodyAr: msg.text,
+            time: "Just now",
+            isRead: false,
+            link: "communications",
+            createdAt: new Date().toISOString(),
+          };
+          setItems((prev) => [newNotif, ...prev]);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  const markAllRead = async () => {
+    setItems((prev) => prev.map((i) => ({ ...i, isRead: true })));
+    await markAllNotificationsRead("doctor");
+  };
+
+  const getIconData = (type: SystemNotification["type"]) => {
+    switch (type) {
+      case "INTERNAL_MESSAGE":
+        return { icon: MessageSquare, color: "text-[#36ADA3] bg-teal-50 dark:bg-teal-950/40" };
+      case "AI_BOOKING_REQUEST":
+        return { icon: Bot, color: "text-purple-600 bg-purple-50 dark:bg-purple-950/40" };
+      case "NEW_APPOINTMENT":
+        return { icon: CalendarCheck, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" };
+      case "NEW_REPORT":
+        return { icon: FileText, color: "text-red-600 bg-red-50 dark:bg-red-950/40" };
+      case "WHATSAPP_MESSAGE":
+        return { icon: MessageCircle, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40" };
+      default:
+        return { icon: Bell, color: "text-slate-600 bg-slate-100 dark:bg-slate-800" };
+    }
   };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#131E2E] p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#1A4B8C] border border-blue-100 mb-1.5">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950/40 text-[#1A4B8C] dark:text-blue-400 border border-blue-100 dark:border-blue-900 mb-1.5">
             <Bell size={13} />
             {isRTL ? "مركز التنبيهات السريرية" : "Clinical Activity & Notification Feed"}
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">
+          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
             {isRTL ? "الإشعارات" : "Notifications"}
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             {isRTL
-              ? "متابعة التحديثات اللحظية للمرضى والمواعيد والتقارير"
-              : "Live updates regarding incoming cases, triage alerts, and reception activities"}
+              ? "متابعة التحديثات اللحظية للمرضى والمواعيد والرسائل المباشرة"
+              : "Live updates regarding incoming cases, triage alerts, and reception communications"}
           </p>
         </div>
 
         <button
           onClick={markAllRead}
-          className="px-3.5 py-2 rounded-xl text-xs font-bold text-[#1A4B8C] bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1.5 cursor-pointer"
+          className="px-3.5 py-2 rounded-xl text-xs font-bold text-[#1A4B8C] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1.5 cursor-pointer"
         >
           <Check size={14} />
           <span>{isRTL ? "تحديد الكل كمقروء" : "Mark all as read"}</span>
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs divide-y divide-slate-100 overflow-hidden">
-        {items.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.id}
-              className={`p-5 flex items-start gap-4 transition-colors ${
-                item.unread ? "bg-blue-50/25" : "hover:bg-slate-50"
-              }`}
-            >
-              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${item.color}`}>
-                <Icon size={20} />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900">{item.title}</h3>
-                  <span className="text-[11px] text-slate-400 font-medium">{item.time}</span>
+      <div className="bg-white dark:bg-[#131E2E] rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+        {items.length === 0 ? (
+          <div className="p-12 text-center text-xs text-slate-400">
+            {isRTL ? "لا توجد إشعارات حاليًا" : "No notifications right now"}
+          </div>
+        ) : (
+          items.map((item) => {
+            const { icon: Icon, color } = getIconData(item.type);
+            return (
+              <div
+                key={item.id}
+                onClick={() => {
+                  if (item.link) {
+                    router.push(`/${locale}/doctor/${item.link}`);
+                  }
+                }}
+                className={`p-5 flex items-start gap-4 transition-colors cursor-pointer ${
+                  !item.isRead ? "bg-blue-50/30 dark:bg-blue-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                }`}
+              >
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${color}`}>
+                  <Icon size={20} />
                 </div>
-                <p className="text-xs text-slate-600 font-medium mt-1">{item.desc}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                      {isRTL ? item.titleAr : item.title}
+                    </h3>
+                    <span className="text-[11px] text-slate-400 font-medium shrink-0">{item.time}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-1 leading-relaxed">
+                    {isRTL ? item.bodyAr : item.body}
+                  </p>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   }
 }
 
-// 2. POST: Ingest incoming WhatsApp messages -> Trigger Hermes AI -> Reply
+// 2. POST: Ingest incoming WhatsApp messages -> AI Assistant -> Reply
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     // Mark message as read
     await metaWhatsApp.markAsRead(messageId);
 
-    // Process via Hermes AI Agent (Qwen 3.5 / GLM-4)
+    // Process via AI Assistant
     const hermesResult = await processHermesMessage({
       fromPhone,
       patientName: senderName,
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       text: hermesResult.replyText,
     });
 
-    console.log(`[Hermes Reply Sent] To: ${fromPhone}, Intent: ${hermesResult.intent}`);
+    console.log(`[AI Reply Sent] To: ${fromPhone}, Intent: ${hermesResult.intent}`);
 
     return NextResponse.json({
       success: true,

@@ -6,7 +6,21 @@ export type RealtimeEvent =
   | { type: "SUMMON_SECRETARY"; payload: { doctorName: string; room: string; time: string; urgent: boolean } }
   | { type: "DISMISS_SUMMON"; payload: { by: string } }
   | { type: "SECRETARY_DISCREET_ALERT"; payload: { message: string; patientName?: string; time: string } }
-  | { type: "CHAT_MESSAGE"; payload: { id: string; sender: "doctor" | "secretary"; text: string; time: string; isRead?: boolean } }
+  | {
+      type: "CHAT_MESSAGE";
+      payload: {
+        id: string;
+        channelId?: string; // e.g. "doctor_secretary_direct" or "broadcast"
+        senderRole: "doctor" | "secretary";
+        sender?: "doctor" | "secretary"; // backward compatibility
+        senderName: string;
+        receiverRole?: "doctor" | "secretary" | "all";
+        text: string;
+        time: string;
+        isRead?: boolean;
+        clinicId?: string;
+      };
+    }
   | { type: "NOTIFICATION_RECEIVED"; payload: { id: string; title: string; body: string; type: string; createdAt: string } };
 
 const CHANNEL_NAME = "doctech_clinic_realtime";
@@ -48,7 +62,7 @@ class RealtimeBus {
     };
   }
 
-  public publish(event: RealtimeEvent) {
+  public publish(event: RealtimeEvent, notifySelf: boolean = false) {
     // 1. BroadcastChannel (same browser / multi-tab)
     if (this.channel) {
       try {
@@ -71,8 +85,10 @@ class RealtimeBus {
       }
     }
 
-    // 3. Also notify self immediately
-    this.notify(event);
+    // 3. Notify self only if requested
+    if (notifySelf) {
+      this.notify(event);
+    }
   }
 
   private notify(event: RealtimeEvent) {
@@ -85,16 +101,54 @@ class RealtimeBus {
     });
   }
 
+  // Web Audio Synthesizer for discreet incoming message notification
+  public playMessageChime() {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const now = ctx.currentTime;
+
+      // Soft dual tone (C5 -> E5)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.35);
+
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 500);
+    } catch {
+      // Audio autoplay prevented or unsupported
+    }
+  }
+
   // Web Audio Synthesizer Chime for Secretary Summon
   public playSummonChime() {
     if (typeof window === "undefined") return;
     try {
-      const AudioContext = window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
+      const AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
 
       const now = ctx.currentTime;
-      
+
       // Dual tone chime (E5 -> G5)
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();

@@ -9,8 +9,8 @@ export async function GET(request: Request) {
       {
         id: "notif-1",
         type: "AI_BOOKING_REQUEST",
-        title: "New AI Booking Request (Hermes)",
-        titleAr: "طلب حجز جديد من الذكاء الاصطناعي (Hermes)",
+        title: "New AI Booking Request",
+        titleAr: "طلب حجز جديد من المساعد الذكي",
         body: "Sara Ibrahim requested consultation today at 10:30 AM via WhatsApp.",
         bodyAr: "سارة إبراهيم طلبت كشف اليوم الساعة ١٠:٣٠ ص عبر الواتساب.",
         time: "5 mins ago",

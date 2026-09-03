@@ -21,7 +21,7 @@ export default function SecretaryWhatsAppChatRoomPage() {
 
   const [aiEnabled, setAiEnabled] = useState(true);
   const [messages, setMessages] = useState<Message[]>([
-    { id: "1", from: "ai", text: "أهلاً بك في عيادات DOCTECH 🩺 أنا هيرميس (Hermes) مساعد الحجز الذكي، كيف يمكنني مساعدتك؟", time: "10:00 AM" },
+    { id: "1", from: "ai", text: "أهلاً بك في العيادة 🩺 كيف يمكنني مساعدتك؟", time: "10:00 AM" },
     { id: "2", from: "patient", text: "مساء الخير، كنت عايز أعرف مواعيد كشف دكتور أحمد حسام وسعر الكشف كام؟", time: "10:02 AM" },
     { id: "3", from: "ai", text: "أهلاً بحضرتك 🩺 قيمة الكشف لأول مرة ٤٠٠ ج.م والمواعيد المتاحة اليوم:\n١. الساعة ١٠:٠٠ ص\n٢. الساعة ٠١:٣٠ م\nهل تحب أحجز لحضرتك؟", time: "10:03 AM" },
     { id: "4", from: "patient", text: "تمام، احجزلي الساعة ١٠:٠٠ صباحًا باسم أحمد حسن ورقمي مسجل عندكم.", time: "10:05 AM" },
@@ -72,14 +72,14 @@ export default function SecretaryWhatsAppChatRoomPage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* AI Hermes Switch */}
+          {/* AI Auto-Reply Switch */}
           <button
             onClick={() => {
               setAiEnabled(!aiEnabled);
               toast.info(
                 aiEnabled
-                  ? (isRTL ? "تم إيقاف ردود Hermes وتفعيل التحكم البشري اليدوي" : "Hermes AI paused. Manual secretary mode active.")
-                  : (isRTL ? "تم تفعيل الرد التلقائي عبر Hermes AI" : "Hermes AI auto-replies enabled.")
+                  ? (isRTL ? "تم إيقاف الرد التلقائي وتفعيل التحكم اليدوي" : "Auto-replies paused. Manual mode active.")
+                  : (isRTL ? "تم تفعيل الرد التلقائي" : "Auto-replies enabled.")
               );
             }}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
@@ -89,7 +89,7 @@ export default function SecretaryWhatsAppChatRoomPage() {
             }`}
           >
             <Sparkles size={13} className={aiEnabled ? "text-purple-600 animate-pulse" : "text-slate-400"} />
-            <span>{aiEnabled ? (isRTL ? "Hermes AI نشط" : "Hermes AI Active") : (isRTL ? "تحكم يدوي" : "Manual Takeover")}</span>
+            <span>{aiEnabled ? (isRTL ? "رد تلقائي" : "Auto Reply") : (isRTL ? "تحكم يدوي" : "Manual")}</span>
           </button>
 
           <Link
@@ -118,7 +118,7 @@ export default function SecretaryWhatsAppChatRoomPage() {
                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase mb-1">
                   {isAI && (
                     <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                      <Bot size={11} /> Hermes AI
+                      <Bot size={11} /> {isRTL ? "المساعد الذكي" : "Smart Assistant"}
                     </span>
                   )}
                   {isClinic && (

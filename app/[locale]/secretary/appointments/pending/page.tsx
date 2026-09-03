@@ -99,14 +99,14 @@ export default function PendingAIBookingsPage() {
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 mb-1.5">
             <Bot size={13} />
-            <span>{isRTL ? "وكيل الحجز الذكي (Hermes AI)" : "Hermes AI Booking Agent"}</span>
+            <span>{isRTL ? "وكيل الحجز الذكي" : "Smart Booking Agent"}</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
             {isRTL ? "مراجعة طلبات الحجز القادمة من الواتساب" : "WhatsApp AI Booking Queue"}
           </h1>
           <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             {isRTL
-              ? "مراجعة بشرية للطلبات المجمعة تلقائيًا من Hermes قبل التثبيت النهائي (Human-in-the-Loop)"
+              ? "مراجعة بشرية للطلبات المجمعة تلقائياً قبل التثبيت النهائي (Human-in-the-Loop)"
               : "Human-in-the-loop review queue for AI-assisted bookings before final confirmation"}
           </p>
         </div>
@@ -129,7 +129,7 @@ export default function PendingAIBookingsPage() {
               {isRTL ? "تمت مراجعة جميع الطلبات بنجاح!" : "All AI Booking Requests Reviewed!"}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {isRTL ? "لا توجد طلبات معلقة من Hermes في الوقت الحالي" : "No pending booking requests from Hermes at the moment."}
+              {isRTL ? "لا توجد طلبات معلقة في الوقت الحالي" : "No pending booking requests at the moment."}
             </p>
           </div>
         ) : (

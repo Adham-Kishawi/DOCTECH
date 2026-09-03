@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { MessageCircle, Search, ArrowRight } from "lucide-react";
+import { MessageCircle, Search, ArrowRight, ExternalLink, Bot, Sparkles } from "lucide-react";
+import { CLINIC_WHATSAPP } from "@/lib/whatsapp/config";
 
 interface Conversation {
   id: string;
@@ -34,30 +35,53 @@ export default function SecretaryWhatsAppPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+      {/* Top Banner with Designated WhatsApp Number */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#131E2E] p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-1.5">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 mb-1.5">
             <MessageCircle size={13} />
             {isRTL ? "محادثات الواتساب الرسمية للعيادة" : "WhatsApp Business Cloud Integration"}
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">
-            {isRTL ? "محادثات الواتساب" : "WhatsApp Inquiries"}
-          </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
+              {isRTL ? "محادثات الواتساب" : "WhatsApp Inquiries"}
+            </h1>
+            <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              {CLINIC_WHATSAPP.display}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             {isRTL
-              ? "التواصل المباشر مع المرضى، تأكيد المواعيد، واستقبال التقارير"
-              : "Live patient chat inbox powered by Meta WhatsApp Business API"}
+              ? "التواصل المباشر مع المرضى، تأكيد المواعيد، ومتابعة حجوزات المساعد الذكي"
+              : "Live patient chat inbox powered by WhatsApp Business API"}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
-            WhatsApp API: Connected
-          </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={CLINIC_WHATSAPP.waMeLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+          >
+            <MessageCircle size={14} />
+            <span>{isRTL ? "فتح واتساب (01031445949)" : "Open WhatsApp"}</span>
+            <ExternalLink size={12} className="opacity-70" />
+          </a>
+
+          <a
+            href={`https://web.whatsapp.com/send?phone=${CLINIC_WHATSAPP.international}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-9 px-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <span>{isRTL ? "واتساب ويب" : "WhatsApp Web"}</span>
+            <ExternalLink size={12} className="opacity-70" />
+          </a>
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div className="bg-white dark:bg-[#131E2E] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="relative w-full sm:w-96">
           <Search className="doctech-input-icon" size={16} />
           <input

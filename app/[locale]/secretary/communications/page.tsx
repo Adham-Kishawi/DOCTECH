@@ -1,12 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   MessageSquare, Send, Search, SendHorizontal, Users,
   CheckCheck, Clock, User, Sparkles, Shield, Circle, Paperclip, ChevronRight, Stethoscope
 } from "lucide-react";
 import { realtimeBus, RealtimeEvent } from "@/lib/realtimeService";
+import {
+  fetchInternalMessages,
+  saveInternalMessage,
+  markInternalMessagesAsRead,
+  InternalChatMessage,
+} from "@/lib/dataService";
 import { toast } from "sonner";
 
 interface StaffContact {
@@ -18,6 +24,7 @@ interface StaffContact {
   unreadCount: number;
   lastMessage: string;
   lastMessageTime: string;
+  channelId: string;
 }
 
 interface ChatMessage {
@@ -39,6 +46,7 @@ const SECRETARY_CONTACTS: StaffContact[] = [
     unreadCount: 0,
     lastMessage: "Team meeting today at 04:30 PM in Conference Room.",
     lastMessageTime: "08:45 AM",
+    channelId: "broadcast",
   },
   {
     id: "doc-1",
@@ -49,6 +57,7 @@ const SECRETARY_CONTACTS: StaffContact[] = [
     unreadCount: 0,
     lastMessage: "Thanks Sarah, reviewing his case right now. Please have his CBC report ready.",
     lastMessageTime: "09:18 AM",
+    channelId: "doctor_secretary_direct",
   },
   {
     id: "doc-2",
@@ -59,6 +68,7 @@ const SECRETARY_CONTACTS: StaffContact[] = [
     unreadCount: 0,
     lastMessage: "I will be in the clinic starting 11:00 AM.",
     lastMessageTime: "08:30 AM",
+    channelId: "direct:doc-2",
   },
   {
     id: "sec-2",
@@ -69,6 +79,7 @@ const SECRETARY_CONTACTS: StaffContact[] = [
     unreadCount: 1,
     lastMessage: "Handover notes: 3 follow-ups scheduled for evening shift.",
     lastMessageTime: "Yesterday",
+    channelId: "direct:sec-2",
   },
   {
     id: "staff-3",
@@ -79,49 +90,7 @@ const SECRETARY_CONTACTS: StaffContact[] = [
     unreadCount: 0,
     lastMessage: "Reconciled today's POS transactions.",
     lastMessageTime: "Yesterday",
-  },
-];
-
-const INITIAL_SECRETARY_MESSAGES: ChatMessage[] = [
-  {
-    id: "m-1",
-    conversationId: "doc-1",
-    senderId: "secretary",
-    senderName: "Sarah Jenkins",
-    text: "Good morning Doctor! Patient Kareem Tarek just sent a report about fever. I triaged it as High urgency.",
-    time: "09:15 AM",
-  },
-  {
-    id: "m-2",
-    conversationId: "doc-1",
-    senderId: "doc-1",
-    senderName: "Dr. Ahmed Hossam",
-    text: "Thanks Sarah, reviewing his case right now. Please have his CBC report ready.",
-    time: "09:18 AM",
-  },
-  {
-    id: "m-3",
-    conversationId: "doc-1",
-    senderId: "secretary",
-    senderName: "Sarah Jenkins",
-    text: "Patient Kareem Tarek fever report is uploaded and attached to his case file.",
-    time: "09:20 AM",
-  },
-  {
-    id: "m-4",
-    conversationId: "sec-2",
-    senderId: "sec-2",
-    senderName: "Dina Mansour",
-    text: "Handover notes: 3 follow-ups scheduled for evening shift, all files prepared.",
-    time: "Yesterday",
-  },
-  {
-    id: "m-5",
-    conversationId: "broadcast",
-    senderId: "doc-1",
-    senderName: "Dr. Ahmed Hossam",
-    text: "Team meeting today at 04:30 PM in Conference Room to review new WhatsApp AI booking flows.",
-    time: "08:45 AM",
+    channelId: "direct:staff-3",
   },
 ];
 
@@ -133,16 +102,34 @@ const QUICK_SECRETARY_TEMPLATES = [
   "Patient is asking about prescription renewal.",
 ];
 
+function getContactIdForChannel(channelId: string): string {
+  if (channelId === "doctor_secretary_direct") return "doc-1";
+  if (channelId === "broadcast") return "broadcast";
+  if (channelId.startsWith("direct:")) return channelId.replace("direct:", "");
+  return "doc-1";
+}
+
+function getChannelForContactId(contactId: string): string {
+  if (contactId === "doc-1") return "doctor_secretary_direct";
+  if (contactId === "broadcast") return "broadcast";
+  return `direct:${contactId}`;
+}
+
 export default function SecretaryCommunicationsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || "en";
 
   const [contactList, setContactList] = useState<StaffContact[]>(SECRETARY_CONTACTS);
   const [selectedContactId, setSelectedContactId] = useState<string>("doc-1");
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_SECRETARY_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedContactIdRef = useRef(selectedContactId);
+
+  useEffect(() => {
+    selectedContactIdRef.current = selectedContactId;
+  }, [selectedContactId]);
 
   const selectedContact = contactList.find((s) => s.id === selectedContactId) || contactList[0];
 
@@ -151,53 +138,138 @@ export default function SecretaryCommunicationsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, selectedContactId]);
 
-  // Real-time listener
+  // Load initial messages from database / local storage
+  useEffect(() => {
+    async function loadChatHistory() {
+      try {
+        const stored = await fetchInternalMessages();
+        if (stored && stored.length > 0) {
+          const mapped: ChatMessage[] = stored.map((m: InternalChatMessage) => ({
+            id: m.id,
+            conversationId: getContactIdForChannel(m.channelId),
+            senderId: m.senderRole,
+            senderName: m.senderName,
+            text: m.content,
+            time: m.sentAt,
+          }));
+          setMessages(mapped);
+
+          // Update sidebar contact snippets
+          setContactList((prev) =>
+            prev.map((c) => {
+              const channelId = getChannelForContactId(c.id);
+              const contactMsgs = stored.filter((m) => m.channelId === channelId);
+              if (contactMsgs.length > 0) {
+                const latest = contactMsgs[contactMsgs.length - 1];
+                return {
+                  ...c,
+                  lastMessage: latest.content,
+                  lastMessageTime: latest.sentAt,
+                };
+              }
+              return c;
+            })
+          );
+        }
+      } catch (err) {
+        console.warn("Failed to load initial messages:", err);
+      }
+    }
+    loadChatHistory();
+  }, []);
+
+  // Real-time listener for incoming messages
   useEffect(() => {
     const unsub = realtimeBus.subscribe((event: RealtimeEvent) => {
       if (event.type === "CHAT_MESSAGE") {
         const incoming = event.payload;
+        // Skip own messages sent from this window
+        if (incoming.senderRole === "secretary" && incoming.senderName.includes("Sarah")) {
+          return;
+        }
+
+        const channelId = incoming.channelId || "doctor_secretary_direct";
+        const targetContactId = getContactIdForChannel(channelId);
+
+        const newMsg: ChatMessage = {
+          id: incoming.id,
+          conversationId: targetContactId,
+          senderId: incoming.senderRole,
+          senderName: incoming.senderName,
+          text: incoming.text,
+          time: incoming.time,
+        };
+
         setMessages((prev) => {
           if (prev.some((m) => m.id === incoming.id)) return prev;
-          return [
-            ...prev,
-            {
-              id: incoming.id,
-              conversationId: selectedContactId,
-              senderId: incoming.sender,
-              senderName: incoming.sender === "doctor" ? "Dr. Ahmed Hossam" : "Reception",
-              text: incoming.text,
-              time: incoming.time,
-            },
-          ];
+          return [...prev, newMsg];
         });
+
+        const activeId = selectedContactIdRef.current;
+        const isCurrentThread = targetContactId === activeId;
+
+        // Update sidebar last message & unread badge
+        setContactList((prev) =>
+          prev.map((c) => {
+            if (c.id === targetContactId) {
+              return {
+                ...c,
+                lastMessage: incoming.text,
+                lastMessageTime: incoming.time,
+                unreadCount: isCurrentThread ? 0 : (c.unreadCount || 0) + 1,
+              };
+            }
+            return c;
+          })
+        );
+
+        // Sound chime for incoming message
+        realtimeBus.playMessageChime();
+
+        // Toast notification if on another thread or as a subtle alert
+        if (!isCurrentThread) {
+          toast.info(`💬 ${incoming.senderName}: "${incoming.text.slice(0, 40)}${incoming.text.length > 40 ? "..." : ""}"`, {
+            action: {
+              label: "Open",
+              onClick: () => handleSelectContact(targetContactId),
+            },
+          });
+        }
       }
     });
 
     return () => unsub();
-  }, [selectedContactId]);
+  }, []);
 
-  const handleSelectContact = (id: string) => {
+  const handleSelectContact = useCallback((id: string) => {
     setSelectedContactId(id);
     setContactList((prev) =>
       prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
     );
-  };
+    const channelId = getChannelForContactId(id);
+    markInternalMessagesAsRead(channelId, "secretary");
+  }, []);
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const content = (textToSend || inputText).trim();
     if (!content) return;
 
+    const channelId = getChannelForContactId(selectedContactId);
+    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
     const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       conversationId: selectedContactId,
       senderId: "secretary",
       senderName: "Sarah Jenkins (Reception)",
       text: content,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      time: timeStr,
     };
 
+    // 1. Immediately update local UI
     setMessages((prev) => [...prev, newMsg]);
 
+    // 2. Update sidebar
     setContactList((prev) =>
       prev.map((c) =>
         c.id === selectedContactId
@@ -206,17 +278,39 @@ export default function SecretaryCommunicationsPage() {
       )
     );
 
+    if (!textToSend) setInputText("");
+
+    // 3. Save to database / persistent local storage
+    try {
+      await saveInternalMessage({
+        id: newMsg.id,
+        channelId,
+        senderRole: "secretary",
+        senderName: newMsg.senderName,
+        content,
+        sentAt: timeStr,
+        isRead: false,
+        clinicId: "cln-001",
+      });
+    } catch (e) {
+      console.warn("Failed saving internal message", e);
+    }
+
+    // 4. Publish to realtime bus for doctor (notifySelf = false to prevent duplicate)
     realtimeBus.publish({
       type: "CHAT_MESSAGE",
       payload: {
         id: newMsg.id,
+        channelId,
+        senderRole: "secretary",
         sender: "secretary",
+        senderName: newMsg.senderName,
+        receiverRole: selectedContactId === "broadcast" ? "all" : "doctor",
         text: content,
-        time: newMsg.time,
+        time: timeStr,
+        clinicId: "cln-001",
       },
-    });
-
-    if (!textToSend) setInputText("");
+    }, false);
   };
 
   // Send Discreet Note to doctor
@@ -229,7 +323,7 @@ export default function SecretaryCommunicationsPage() {
           message: note,
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
-      });
+      }, true);
       toast.success("Quiet alert delivered directly to Doctor's examination screen.");
     }
   };

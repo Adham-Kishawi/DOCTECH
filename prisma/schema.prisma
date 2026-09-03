@@ -261,11 +261,13 @@ model WhatsAppMessage {
 model InternalMessage {
   id          String    @id @default(cuid())
   clinicId    String?   // For multi-tenant isolation
+  channelId   String?   // Channel or conversation ID ("doctor_secretary_direct", "broadcast", etc.)
   doctorId    String?
   doctor      Doctor?   @relation(fields: [doctorId], references: [id])
   secretaryId String?
   secretary   Secretary? @relation(fields: [secretaryId], references: [id])
   senderRole  String?   // "doctor" | "secretary"
+  senderName  String?   // Display sender name
   content     String
   isRead      Boolean   @default(false)
   sentAt      DateTime  @default(now())
@@ -377,5 +379,6 @@ enum NotificationType {
   AI_BOOKING_REQUEST
   APPOINTMENT_REMINDER
   SECRETARY_INVITATION
+  INTERNAL_MESSAGE
   SYSTEM
 }

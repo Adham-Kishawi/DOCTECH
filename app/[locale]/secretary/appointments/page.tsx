@@ -86,7 +86,7 @@ export default function SecretaryAppointmentsPage() {
           </h1>
           <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             {isRTL
-              ? "حجز مواعيد جديدة، مراجعة طلبات الـ AI (Hermes)، وتحديث الحالات"
+              ? "حجز مواعيد جديدة، مراجعة طلبات المساعد الذكي، وتحديث الحالات"
               : "Book, reschedule, approve AI booking requests, and manage patient appointments"}
           </p>
         </div>
@@ -183,7 +183,7 @@ export default function SecretaryAppointmentsPage() {
                     {apt.source === "AI" && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                         <Sparkles size={10} />
-                        <span>Hermes AI</span>
+                        <span>{isRTL ? "مساعد ذكي" : "AI"}</span>
                       </span>
                     )}
                     {apt.source === "WHATSAPP" && (

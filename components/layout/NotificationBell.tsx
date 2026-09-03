@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Bell, Check, Clock, Bot, Calendar, AlertCircle, X } from "lucide-react";
+import { Bell, Check, Clock, Bot, Calendar, AlertCircle, X, MessageSquare } from "lucide-react";
 import { realtimeBus, RealtimeEvent } from "@/lib/realtimeService";
+import { fetchNotifications, markAllNotificationsRead, SystemNotification } from "@/lib/notificationService";
 
 export interface AppNotification {
   id: string;
-  type: "NEW_APPOINTMENT" | "AI_BOOKING_REQUEST" | "APPOINTMENT_CANCELLED" | "NEW_REPORT" | "SYSTEM";
+  type: "NEW_APPOINTMENT" | "AI_BOOKING_REQUEST" | "APPOINTMENT_CANCELLED" | "NEW_REPORT" | "SYSTEM" | "INTERNAL_MESSAGE" | "WHATSAPP_MESSAGE";
   title: string;
   titleAr: string;
   body: string;
@@ -17,42 +18,6 @@ export interface AppNotification {
   link: string;
 }
 
-const initialNotifications: AppNotification[] = [
-  {
-    id: "notif-1",
-    type: "AI_BOOKING_REQUEST",
-    title: "New AI Booking Request (Hermes)",
-    titleAr: "طلب حجز جديد من الذكاء الاصطناعي (Hermes)",
-    body: "Sara Ibrahim requested consultation today at 10:30 AM via WhatsApp.",
-    bodyAr: "سارة إبراهيم طلبت كشف اليوم الساعة ١٠:٣٠ ص عبر الواتساب.",
-    time: "5 mins ago",
-    isRead: false,
-    link: "appointments/pending",
-  },
-  {
-    id: "notif-2",
-    type: "NEW_APPOINTMENT",
-    title: "New Appointment Scheduled",
-    titleAr: "تم تسجيل حجز جديد",
-    body: "Youssef Nabil booked for 09:30 AM with Dr. Ahmed Hossam.",
-    bodyAr: "تم حجز موعد ليوسف نبيل الساعة ٠٩:٣٠ ص مع د. أحمد حسام.",
-    time: "25 mins ago",
-    isRead: false,
-    link: "appointments",
-  },
-  {
-    id: "notif-3",
-    type: "NEW_REPORT",
-    title: "Urgent Medical Inquiry",
-    titleAr: "استفسار طبي عاجل",
-    body: "Kareem Tarek sent high-fever symptoms report for review.",
-    bodyAr: "كريم طارق أرسل تقرير أعراض حرارة مرتفعة للمراجعة.",
-    time: "1 hour ago",
-    isRead: true,
-    link: "reports",
-  },
-];
-
 interface NotificationBellProps {
   role: "doctor" | "secretary";
   locale: string;
@@ -61,31 +26,89 @@ interface NotificationBellProps {
 
 export function NotificationBell({ role, locale, isRTL }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
+  // Initial load from persistent cache / backend
+  useEffect(() => {
+    async function loadNotifs() {
+      try {
+        const notifs = await fetchNotifications(role);
+        setNotifications(
+          notifs.map((n) => ({
+            id: n.id,
+            type: (n.type as AppNotification["type"]) || "SYSTEM",
+            title: n.title,
+            titleAr: n.titleAr || n.title,
+            body: n.body,
+            bodyAr: n.bodyAr || n.body,
+            time: n.time,
+            isRead: n.isRead,
+            link: n.link || "notifications",
+          }))
+        );
+      } catch (e) {
+        console.warn("Failed to load notifications:", e);
+      }
+    }
+    loadNotifs();
+  }, [role]);
+
+  // Realtime listeners for new notifications and incoming chat messages
   useEffect(() => {
     const unsub = realtimeBus.subscribe((event: RealtimeEvent) => {
       if (event.type === "NOTIFICATION_RECEIVED") {
-        const newN: AppNotification = {
-          id: event.payload.id,
-          type: (event.payload.type as AppNotification["type"]) || "SYSTEM",
-          title: event.payload.title,
-          titleAr: event.payload.title,
-          body: event.payload.body,
-          bodyAr: event.payload.body,
-          time: "Just now",
-          isRead: false,
-          link: "notifications",
-        };
-        setNotifications((prev) => [newN, ...prev]);
+        const payload = event.payload;
+        setNotifications((prev) => {
+          if (prev.some((n) => n.id === payload.id)) return prev;
+          const newN: AppNotification = {
+            id: payload.id,
+            type: (payload.type as AppNotification["type"]) || "SYSTEM",
+            title: payload.title,
+            titleAr: payload.title,
+            body: payload.body,
+            bodyAr: payload.body,
+            time: "Just now",
+            isRead: false,
+            link: "notifications",
+          };
+          return [newN, ...prev];
+        });
+      } else if (event.type === "CHAT_MESSAGE") {
+        const msg = event.payload;
+        // Verify message is directed to this role
+        const isTarget =
+          (role === "doctor" && msg.senderRole === "secretary") ||
+          (role === "secretary" && msg.senderRole === "doctor") ||
+          msg.receiverRole === "all";
+
+        if (isTarget) {
+          const notifId = `notif-chat-${msg.id}`;
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === notifId || n.id === msg.id)) return prev;
+            const newN: AppNotification = {
+              id: notifId,
+              type: "INTERNAL_MESSAGE",
+              title: isRTL
+                ? `رسالة جديدة من ${msg.senderName}`
+                : `New message from ${msg.senderName}`,
+              titleAr: `رسالة جديدة من ${msg.senderName}`,
+              body: msg.text,
+              bodyAr: msg.text,
+              time: "Just now",
+              isRead: false,
+              link: "communications",
+            };
+            return [newN, ...prev];
+          });
+        }
       }
     });
 
     return () => unsub();
-  }, []);
+  }, [role, isRTL]);
 
   // Close when clicking outside
   useEffect(() => {
@@ -102,12 +125,15 @@ export function NotificationBell({ role, locale, isRTL }: NotificationBellProps)
     };
   }, [isOpen]);
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    await markAllNotificationsRead(role);
   };
 
   const getIcon = (type: AppNotification["type"]) => {
     switch (type) {
+      case "INTERNAL_MESSAGE":
+        return <MessageSquare size={15} className="text-[#36ADA3] dark:text-[#4B85C5]" />;
       case "AI_BOOKING_REQUEST":
         return <Bot size={15} className="text-purple-600 dark:text-purple-400" />;
       case "NEW_APPOINTMENT":

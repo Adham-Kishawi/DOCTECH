@@ -6,9 +6,11 @@ export interface ProcessWhatsAppInput {
   patientName?: string;
   messageText: string;
   conversationHistory?: { role: "user" | "assistant"; text: string }[];
+  /** Optional clinic context injected from the settings page */
+  clinicContextPrompt?: string;
 }
 
-export interface HermesResult {
+export interface AssistantResult {
   replyText: string;
   intent: "BOOKING_REQUEST" | "INQUIRY" | "GREETING" | "CANCEL";
   extractedDetails?: {
@@ -21,24 +23,27 @@ export interface HermesResult {
   createdBookingRequest?: boolean;
 }
 
-const HERMES_SYSTEM_PROMPT = `You are "Hermes", the friendly, polite, and highly professional medical receptionist AI for DOCTECH Multi-Tenant Clinic OS (Egypt).
-Your job is to:
-1. Speak in warm, polite Egyptian Arabic (لهجة مصرية مهذبة وراقية مع فصحى مبسطة).
-2. Answer clinic FAQs: Address, Fees (New Consultation: 400 EGP, Follow-up: 200 EGP), Doctors (Dr. Ahmed Hossam - Cardiology, Dr. Tarek Omar - Internal Medicine).
-3. Handle booking requests by extracting:
-   - Patient Name
-   - Preferred Day/Time
-   - Brief complaint/symptoms
-4. Never confirm a medical prescription or give definitive diagnosis.
-5. Emphasize that all booking requests are reviewed and confirmed by the human reception desk within 10 minutes.
+// Keep old type name for backwards compat
+export type HermesResult = AssistantResult;
 
-Current Available Slots Today: 10:00 AM, 01:30 PM, 02:30 PM. Tomorrow: 11:00 AM, 03:00 PM.`;
+function buildSystemPrompt(clinicContextPrompt?: string): string {
+  return `أنت مساعد استقبال ذكي لعيادة طبية في مصر. مهمتك هي:
+1. التحدث بلهجة مصرية مهذبة وراقية مع فصحى مبسطة.
+2. الإجابة على أسئلة المرضى المتعلقة بالعيادة (العنوان، المواعيد، الأسعار، الخدمات).
+3. استقبال طلبات الحجز واستخراج:
+   - اسم المريض
+   - اليوم والوقت المفضل
+   - الشكوى أو الأعراض
+4. لا تعطي تشخيص طبي أو وصفات أدوية أبداً.
+5. أكد دائماً أن طلبات الحجز يتم مراجعتها وتأكيدها من الاستقبال خلال 10 دقائق.
+6. لا تذكر أبداً أنك ذكاء اصطناعي أو موديل لغوي — تصرف كموظف استقبال حقيقي.${clinicContextPrompt || ""}`;
+}
 
-export async function processHermesMessage(input: ProcessWhatsAppInput): Promise<HermesResult> {
-  const { fromPhone, messageText, conversationHistory = [] } = input;
+export async function processHermesMessage(input: ProcessWhatsAppInput): Promise<AssistantResult> {
+  const { fromPhone, messageText, conversationHistory = [], clinicContextPrompt } = input;
 
   const messages: ChatMessage[] = [
-    { role: "system", content: HERMES_SYSTEM_PROMPT },
+    { role: "system", content: buildSystemPrompt(clinicContextPrompt) },
     ...conversationHistory.map((h) => ({
       role: h.role,
       content: h.text,
@@ -46,13 +51,13 @@ export async function processHermesMessage(input: ProcessWhatsAppInput): Promise
     { role: "user", content: messageText },
   ];
 
-  // 1. Generate conversational response via OpenRouter (Qwen -> GLM)
+  // Generate conversational response via OpenRouter
   const aiReply = await callOpenRouter(messages, {
     temperature: 0.3,
     maxTokens: 350,
   });
 
-  // 2. Detect Intent & Extract Structured Data
+  // Detect Intent & Extract Structured Data
   const isBookingIntent =
     messageText.includes("حجز") ||
     messageText.includes("كشف") ||
@@ -61,7 +66,7 @@ export async function processHermesMessage(input: ProcessWhatsAppInput): Promise
     messageText.includes("الساعة") ||
     messageText.includes("دكتور");
 
-  let extractedDetails: HermesResult["extractedDetails"] = undefined;
+  let extractedDetails: AssistantResult["extractedDetails"] = undefined;
   let createdBookingRequest = false;
 
   if (isBookingIntent) {
