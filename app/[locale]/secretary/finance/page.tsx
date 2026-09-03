@@ -396,11 +396,10 @@ export default function SecretaryFinancePage() {
             <button
               key={st.id}
               onClick={() => setFilterType(st.id as typeof filterType)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                filterType === st.id
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${filterType === st.id
                   ? "bg-[#1A4B8C] text-white shadow-xs"
                   : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-              }`}
+                }`}
             >
               {isRTL ? st.ar : st.en}
             </button>

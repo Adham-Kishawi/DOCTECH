@@ -51,7 +51,7 @@ export default async function DoctorDashboardPage({
 
         <div className="flex items-center gap-3">
           <Link
-            href={`/${locale}/doctor/reports/1`}
+            href={`/${locale}/doctor/reports`}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-[#1A4B8C] text-white hover:bg-blue-800 transition-colors shadow-md shadow-blue-900/10"
           >
             <FileText size={16} />
@@ -145,7 +145,7 @@ export default async function DoctorDashboardPage({
             {pendingReports.map((rep) => (
               <Link
                 key={rep.id}
-                href={`/${locale}/doctor/reports/${rep.id}`}
+                href={`/${locale}/doctor/reports`}
                 className="block p-3 rounded-xl border border-gray-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-900 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 transition-all"
               >
                 <div className="flex items-center justify-between mb-1">
