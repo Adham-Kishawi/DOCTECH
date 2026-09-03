@@ -32,6 +32,8 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
   const isRTL = locale === "ar";
 
   const handleSummonSecretary = () => {
+  
+
     realtimeBus.publish({
       type: "SUMMON_SECRETARY",
       payload: {

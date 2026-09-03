@@ -15,6 +15,7 @@ export function DiscreetAlert() {
     const unsub = realtimeBus.subscribe((event: RealtimeEvent) => {
       if (event.type === "SECRETARY_DISCREET_ALERT") {
         setAlert(event.payload);
+        
         // Auto dismiss after 8 seconds
         setTimeout(() => setAlert(null), 8000);
       }
