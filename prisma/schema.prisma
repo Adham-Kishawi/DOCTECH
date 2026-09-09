@@ -24,13 +24,15 @@ model Clinic {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  doctors       Doctor[]
-  secretaries   Secretary[]
-  patients      Patient[]
-  appointments  Appointment[]
-  reports       Report[]
-  notifications Notification[]
-  conversations WhatsAppConversation[]
+  doctors          Doctor[]
+  secretaries      Secretary[]
+  patients         Patient[]
+  appointments     Appointment[]
+  reports          Report[]
+  notifications    Notification[]
+  conversations    WhatsAppConversation[]
+  schedules        DoctorSchedule[]
+  appointmentTypes AppointmentType[]
 
   @@map("clinics")
 }
@@ -54,6 +56,7 @@ model Doctor {
   reports       Report[]
   notifications Notification[]
   messages      InternalMessage[]
+  schedules     DoctorSchedule[]
 
   @@map("doctors")
 }
@@ -80,6 +83,42 @@ model Secretary {
 }
 
 // ==============================
+// DOCTOR SCHEDULE (Working Hours + Slot Config)
+// ==============================
+model DoctorSchedule {
+  id           String  @id @default(cuid())
+  doctorId     String
+  doctor       Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  clinicId     String
+  clinic       Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  dayOfWeek    Int     // 0=Sunday ... 6=Saturday
+  startTime    String  // "09:00" (24h format)
+  endTime      String  // "17:00" (24h format)
+  slotDuration Int     @default(30) // minutes per slot
+  isActive     Boolean @default(true)
+
+  @@unique([doctorId, dayOfWeek])
+  @@map("doctor_schedules")
+}
+
+// ==============================
+// APPOINTMENT TYPES (Custom per Clinic)
+// ==============================
+model AppointmentType {
+  id       String  @id @default(cuid())
+  clinicId String
+  clinic   Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  nameEn   String
+  nameAr   String
+  fee      Float?  // Default fee for this type
+  isActive Boolean @default(true)
+
+  appointments Appointment[]
+
+  @@map("appointment_types")
+}
+
+// ==============================
 // PATIENTS
 // ==============================
 model Patient {
@@ -96,33 +135,65 @@ model Patient {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  appointments Appointment[]
-  reports      Report[]
+  appointments  Appointment[]
+  reports       Report[]
   conversations WhatsAppConversation[]
+  attachments   PatientAttachment[]
 
   @@map("patients")
+}
+
+// ==============================
+// PATIENT ATTACHMENTS (X-rays, Prescriptions, Files)
+// ==============================
+model PatientAttachment {
+  id            String       @id @default(cuid())
+  patientId     String
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?      // null = general attachment (not tied to a visit)
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  clinicId      String
+  fileName      String
+  fileUrl       String
+  fileType      String       // "image", "pdf", "xray", "prescription"
+  description   String?
+  uploadedAt    DateTime     @default(now())
+
+  @@map("patient_attachments")
 }
 
 // ==============================
 // APPOINTMENTS
 // ==============================
 model Appointment {
-  id           String            @id @default(cuid())
-  patientId    String
-  patient      Patient           @relation(fields: [patientId], references: [id])
-  doctorId     String
-  doctor       Doctor            @relation(fields: [doctorId], references: [id])
-  secretaryId  String?
-  secretary    Secretary?        @relation(fields: [secretaryId], references: [id])
-  clinicId     String
-  clinic       Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  date         DateTime
-  duration     Int               @default(30) // in minutes
-  status       AppointmentStatus @default(SCHEDULED)
-  type         String?
-  notes        String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id                String            @id @default(cuid())
+  patientId         String
+  patient           Patient           @relation(fields: [patientId], references: [id])
+  doctorId          String
+  doctor            Doctor            @relation(fields: [doctorId], references: [id])
+  secretaryId       String?
+  secretary         Secretary?        @relation(fields: [secretaryId], references: [id])
+  clinicId          String
+  clinic            Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointmentTypeId String?
+  appointmentType   AppointmentType?  @relation(fields: [appointmentTypeId], references: [id])
+  date              DateTime
+  duration          Int               @default(30) // in minutes
+  status            AppointmentStatus @default(SCHEDULED)
+  source            AppointmentSource @default(MANUAL)
+  bookingStatus     BookingStatus     @default(APPROVED)
+  type              String?           // Legacy free-text type (kept for backward compat)
+  notes             String?
+  // Payment fields
+  fee               Float?
+  amountPaid        Float?            @default(0)
+  paymentMethod     PaymentMethod?
+  paymentDate       DateTime?
+  paymentNotes      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  attachments PatientAttachment[]
 
   @@map("appointments")
 }
@@ -189,10 +260,14 @@ model WhatsAppMessage {
 // ==============================
 model InternalMessage {
   id          String    @id @default(cuid())
+  clinicId    String?   // For multi-tenant isolation
+  channelId   String?   // Channel or conversation ID ("doctor_secretary_direct", "broadcast", etc.)
   doctorId    String?
   doctor      Doctor?   @relation(fields: [doctorId], references: [id])
   secretaryId String?
   secretary   Secretary? @relation(fields: [secretaryId], references: [id])
+  senderRole  String?   // "doctor" | "secretary"
+  senderName  String?   // Display sender name
   content     String
   isRead      Boolean   @default(false)
   sentAt      DateTime  @default(now())
@@ -244,6 +319,25 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum AppointmentSource {
+  MANUAL
+  AI
+  WHATSAPP
+}
+
+enum BookingStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  INSURANCE
+}
+
 enum ReportStatus {
   PENDING
   TRIAGED
@@ -278,9 +372,13 @@ enum MessageFrom {
 enum NotificationType {
   NEW_APPOINTMENT
   APPOINTMENT_CANCELLED
+  APPOINTMENT_MODIFIED
   NEW_REPORT
   REPORT_REVIEWED
   WHATSAPP_MESSAGE
+  AI_BOOKING_REQUEST
+  APPOINTMENT_REMINDER
   SECRETARY_INVITATION
+  INTERNAL_MESSAGE
   SYSTEM
 }

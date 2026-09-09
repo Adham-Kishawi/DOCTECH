@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 
@@ -13,29 +13,29 @@ interface LogoProps {
 export function Logo({
   variant = "horizontal",
   mode = "auto",
-  size = 38,
+  size = 36,
   className = "",
   showText = true,
 }: LogoProps) {
   // DOCTECH Official Brand Palette:
-  // Primary Blue: #3368A0 | Healthcare Teal: #36ADA3 | Dark Blue: #285783
+  // Teal: #36ADA3 | Primary Blue: #3368A0 | Dark Navy: #0B131E
 
   const isLight = mode === "light";
   const isDark = mode === "dark";
   const isReverse = mode === "reverse";
 
-  // Segment Color Classes:
+  // Segment Color:
   // In Light mode: DOCTECH BLUE #3368A0
   // In Dark mode: Pure White #FFFFFF
   // In Auto mode: #3368A0 in light, white in dark
-  let segmentColorClass = "text-[#3368A0] dark:text-white";
+  let strokeColorClass = "stroke-[#3368A0] dark:stroke-white";
   let textColorClass = "text-[#3368A0] dark:text-white";
 
   if (isLight) {
-    segmentColorClass = "text-[#3368A0]";
+    strokeColorClass = "stroke-[#3368A0]";
     textColorClass = "text-[#3368A0]";
   } else if (isDark || isReverse) {
-    segmentColorClass = "text-white";
+    strokeColorClass = "stroke-white";
     textColorClass = "text-white";
   }
 
@@ -43,36 +43,53 @@ export function Logo({
     <svg
       width={symbolSize}
       height={symbolSize}
-      viewBox="0 0 140 140"
+      viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="shrink-0 transition-transform duration-200"
     >
-      {/* 1. Healthcare Teal Top-Left Node */}
-      <circle cx="30" cy="22" r="16" fill="#36ADA3" />
+      {/* 1. Teal Connector Line */}
+      <line
+        x1="20"
+        y1="20"
+        x2="48"
+        y2="20"
+        stroke="#36ADA3"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+      />
 
-      {/* 2. Healthcare Teal Connector Line */}
-      <rect x="42" y="19" width="22" height="6" rx="3" fill="#36ADA3" />
+      {/* 2. Top-Left Healthcare Teal Dot */}
+      <circle cx="20" cy="20" r="10" fill="#36ADA3" />
 
-      {/* 3. Top-Right Arc Segment (Thick bold curve) */}
+      {/* 3. Top-Right Arc Segment */}
       <path
-        d="M60 10H92C114.091 10 132 27.9086 132 50V56C132 60.4183 128.418 64 124 64H112C107.582 64 104 60.4183 104 56V44C104 37.3726 98.6274 32 92 32H60C55.5817 32 52 28.4183 52 24V18C52 13.5817 55.5817 10 60 10Z"
-        fill="currentColor"
-        className={segmentColorClass}
+        d="M 46 20 L 66 20 A 16 16 0 0 1 82 36 L 82 38"
+        fill="none"
+        strokeWidth="13"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={strokeColorClass}
       />
 
       {/* 4. Bottom-Right Arc Segment */}
       <path
-        d="M104 84C104 79.5817 107.582 76 112 76H124C128.418 76 132 79.5817 132 84V90C132 112.091 114.091 130 92 130H60C55.5817 130 52 126.418 52 122V116C52 111.582 55.5817 108 60 108H92C98.6274 108 104 102.627 104 96V84Z"
-        fill="currentColor"
-        className={segmentColorClass}
+        d="M 82 62 L 82 64 A 16 16 0 0 1 66 80 L 56 80"
+        fill="none"
+        strokeWidth="13"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={strokeColorClass}
       />
 
-      {/* 5. Left Main Stem & Bottom-Left Corner */}
+      {/* 5. Left & Bottom-Left 'L' Stem */}
       <path
-        d="M14 48C14 43.5817 17.5817 40 22 40H34C38.4183 40 42 43.5817 42 48V100C42 104.418 45.5817 108 50 108H60C64.4183 108 68 111.582 68 116V122C68 126.418 64.4183 130 60 130H42C26.536 130 14 117.464 14 102V48Z"
-        fill="currentColor"
-        className={segmentColorClass}
+        d="M 20 38 L 20 64 A 16 16 0 0 0 36 80 L 40 80"
+        fill="none"
+        strokeWidth="13"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={strokeColorClass}
       />
     </svg>
   );

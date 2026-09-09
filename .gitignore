@@ -47,6 +47,3 @@ next-env.d.ts
 # Prisma
 prisma/migrations/
 
-# Next.js
-.next/
-

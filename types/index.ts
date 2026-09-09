@@ -119,13 +119,17 @@ export interface WhatsAppMessage {
 
 export interface InternalMessage {
   id: string;
+  clinicId?: string;
+  channelId?: string;
   doctorId?: string;
   doctor?: Doctor;
   secretaryId?: string;
   secretary?: Secretary;
+  senderRole?: "doctor" | "secretary";
+  senderName?: string;
   content: string;
   isRead: boolean;
-  sentAt: Date;
+  sentAt: Date | string;
 }
 
 export interface Notification {

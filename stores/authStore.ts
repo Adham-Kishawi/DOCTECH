@@ -1,6 +1,8 @@
 "use client";
 
-export type UserRole = "doctor" | "secretary";
+import type { UserRole } from "@/types/index";
+
+export type { UserRole };
 
 export interface UserSession {
   id: string;

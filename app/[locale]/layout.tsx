@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
@@ -16,6 +16,11 @@ export const metadata: Metadata = {
     template: "%s | DOCTECH",
   },
   description: "Professional multi-tenant clinic management system for doctors and secretaries.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default async function LocaleLayout({
@@ -30,11 +35,11 @@ export default async function LocaleLayout({
   const isRTL = locale === "ar";
 
   return (
-    <html lang={locale} dir={isRTL ? "rtl" : "ltr"} className={inter.variable}>
-      <body className="min-h-screen antialiased bg-[#F7F5F0]">
+    <html lang={locale} dir={isRTL ? "rtl" : "ltr"} className={`${inter.variable} dark`}>
+      <body className="min-h-screen antialiased bg-[#0B131E] text-[#F8FAFC]">
         <NextIntlClientProvider messages={messages}>
           {children}
-          <Toaster position={isRTL ? "top-left" : "top-right"} richColors />
+          <Toaster position="top-right" richColors theme="dark" />
         </NextIntlClientProvider>
       </body>
     </html>

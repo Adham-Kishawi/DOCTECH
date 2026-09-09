@@ -1,158 +1,185 @@
-
 "use client";
 
-import { supabase } from "@/lib/supabase";
+import { supabase } from "./supabase";
 
 export type RealtimeEvent =
-  | {
-      type: "SUMMON_SECRETARY";
-      payload: {
-        doctorName: string;
-        room: string;
-        time: string;
-        urgent: boolean;
-      };
-    }
-  | {
-      type: "DISMISS_SUMMON";
-      payload: {
-        by: string;
-      };
-    }
-  | {
-      type: "SECRETARY_DISCREET_ALERT";
-      payload: {
-        message: string;
-        patientName?: string;
-        time: string;
-      };
-    }
+  | { type: "SUMMON_SECRETARY"; payload: { doctorName: string; room: string; time: string; urgent: boolean } }
+  | { type: "DISMISS_SUMMON"; payload: { by: string } }
+  | { type: "SECRETARY_DISCREET_ALERT"; payload: { message: string; patientName?: string; time: string } }
   | {
       type: "CHAT_MESSAGE";
       payload: {
         id: string;
-        sender: "doctor" | "secretary";
+        channelId?: string; // e.g. "doctor_secretary_direct" or "broadcast"
+        senderRole: "doctor" | "secretary";
+        sender?: "doctor" | "secretary"; // backward compatibility
+        senderName: string;
+        receiverRole?: "doctor" | "secretary" | "all";
         text: string;
         time: string;
+        isRead?: boolean;
+        clinicId?: string;
       };
-    };
+    }
+  | { type: "NOTIFICATION_RECEIVED"; payload: { id: string; title: string; body: string; type: string; createdAt: string } };
 
-const CHANNEL_NAME = "doctech_clinic_alerts";
+const CHANNEL_NAME = "doctech_clinic_realtime";
 
 class RealtimeBus {
-  private channel: ReturnType<typeof supabase.channel> | null = null;
+  private channel: BroadcastChannel | null = null;
   private listeners: ((event: RealtimeEvent) => void)[] = [];
-  private initialized = false;
+  private supabaseChannel: ReturnType<typeof supabase.channel> | null = null;
 
-  private init() {
-   
+  constructor() {
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      this.channel = new BroadcastChannel(CHANNEL_NAME);
+      this.channel.onmessage = (e) => {
+        this.notify(e.data);
+      };
+    }
 
-    if (this.initialized) return;
-
-    this.initialized = true;
-
-    this.channel = supabase.channel(CHANNEL_NAME);
-
-    this.channel
-      .on("broadcast", { event: "CLINIC_ALERT" }, ({ payload }) => {
-        this.notify(payload as RealtimeEvent);
-        
-      })
-        .subscribe((status) => {
-         console.log("Realtime alerts status:", status);
-  });
-     
+    // Initialize Supabase Realtime Channel only if valid credentials exist
+    if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      try {
+        this.supabaseChannel = supabase
+          .channel(CHANNEL_NAME)
+          .on("broadcast", { event: "clinic_event" }, ({ payload }) => {
+            if (payload) {
+              this.notify(payload as RealtimeEvent);
+            }
+          })
+          .subscribe();
+      } catch (err) {
+        console.warn("Supabase Realtime subscription fallback to BroadcastChannel", err);
+      }
+    }
   }
 
   public subscribe(callback: (event: RealtimeEvent) => void) {
- 
-    this.init();
-
     this.listeners.push(callback);
-
     return () => {
-      this.listeners = this.listeners.filter(
-        (listener) => listener !== callback
-      );
+      this.listeners = this.listeners.filter((l) => l !== callback);
     };
   }
 
-  public publish(event: RealtimeEvent) {
- 
-    this.init();
+  public publish(event: RealtimeEvent, notifySelf: boolean = false) {
+    // 1. BroadcastChannel (same browser / multi-tab)
+    if (this.channel) {
+      try {
+        this.channel.postMessage(event);
+      } catch (e) {
+        console.error("BroadcastChannel error:", e);
+      }
+    }
 
-    this.channel?.send({
-      type: "broadcast",
-      event: "CLINIC_ALERT",
-      payload: event,
-    });
+    // 2. Supabase Realtime Broadcast (cross-device / remote)
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: "broadcast",
+          event: "clinic_event",
+          payload: event,
+        });
+      } catch (e) {
+        console.warn("Supabase send failed, fallback to local bus", e);
+      }
+    }
 
-    
+    // 3. Notify self only if requested
+    if (notifySelf) {
+      this.notify(event);
+    }
   }
 
   private notify(event: RealtimeEvent) {
-    this.listeners.forEach((listener) => {
-      listener(event);
+    this.listeners.forEach((l) => {
+      try {
+        l(event);
+      } catch (err) {
+        console.error("Realtime listener error:", err);
+      }
     });
   }
 
-  // 🚨 Emergency alert sound for the secretary
-  public playSummonChime() {
+  // Web Audio Synthesizer for discreet incoming message notification
+  public playMessageChime() {
     if (typeof window === "undefined") return;
-
     try {
-      const AudioContextClass =
+      const AudioContext =
         window.AudioContext ||
-        (
-          window as typeof window & {
-            webkitAudioContext?: typeof AudioContext;
-          }
-        ).webkitAudioContext;
+        (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const now = ctx.currentTime;
 
-      if (!AudioContextClass) return;
+      // Soft dual tone (C5 -> E5)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-      const ctx = new AudioContextClass();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
 
-      const playTone = (
-        frequency: number,
-        startDelay: number,
-        duration: number
-      ) => {
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
 
-        oscillator.type = "square";
-        oscillator.frequency.setValueAtTime(
-          frequency,
-          ctx.currentTime + startDelay
-        );
+      osc.connect(gain);
+      gain.connect(ctx.destination);
 
-        const start = ctx.currentTime + startDelay;
-        const end = start + duration;
-
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.45, start + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
-        oscillator.connect(gain);
-        gain.connect(ctx.destination);
-
-        oscillator.start(start);
-        oscillator.stop(end);
-      };
-
-      // 🚨 Emergency pattern: high-low / high-low
-      playTone(1100, 0, 0.18);
-      playTone(750, 0.22, 0.18);
-      playTone(1100, 0.44, 0.18);
-      playTone(750, 0.66, 0.18);
-      playTone(1100, 0.88, 0.18);
+      osc.start(now);
+      osc.stop(now + 0.35);
 
       setTimeout(() => {
-        void ctx.close();
-      }, 1400);
-    } catch (error) {
-     }
+        ctx.close().catch(() => {});
+      }, 500);
+    } catch {
+      // Audio autoplay prevented or unsupported
+    }
+  }
+
+  // Web Audio Synthesizer Chime for Secretary Summon
+  public playSummonChime() {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioContext =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+
+      const now = ctx.currentTime;
+
+      // Dual tone chime (E5 -> G5)
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(659.25, now); // E5
+      osc1.frequency.setValueAtTime(783.99, now + 0.15); // G5
+
+      osc2.type = "triangle";
+      osc2.frequency.setValueAtTime(659.25, now);
+      osc2.frequency.setValueAtTime(783.99, now + 0.15);
+
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.8);
+      osc2.stop(now + 0.8);
+
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 1000);
+    } catch (e) {
+      console.warn("Audio chime autoplay prevented or unsupported", e);
+    }
   }
 }
 
