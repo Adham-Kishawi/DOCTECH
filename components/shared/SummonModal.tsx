@@ -12,29 +12,76 @@ export function SummonModal() {
     time: string;
   } | null>(null);
 
+  // useEffect(() => {
+  //   console.log("✅ SummonModal mounted");
+  //   console.log("🟢 2 - About to subscribe to realtimeBus");
+  //   const unsub = realtimeBus.subscribe((event: RealtimeEvent) => {
+  //     console.log("📩 3 - Secretary received:", event);
+  //     if (event.type === "SUMMON_SECRETARY") {
+  //       setSummon(event.payload);
+  //       realtimeBus.playSummonChime();
+  //       toast.error(`🚨 URGENT: ${event.payload.doctorName} is calling you to ${event.payload.room}!`, {
+  //         duration: 10000,
+  //       });
+  //     } else if (event.type === "DISMISS_SUMMON") {
+  //       setSummon(null);
+  //     }
+  //   });
+
+  //   return () => unsub();
+  // }, []);
+
+  // if (!summon) return null;
+
+  // const handleAcknowledge = () => {
+  //   realtimeBus.publish({ type: "DISMISS_SUMMON", payload: { by: "Secretary" } });
+  //   setSummon(null);
+  // };
+
   useEffect(() => {
-    const unsub = realtimeBus.subscribe((event: RealtimeEvent) => {
-      if (event.type === "SUMMON_SECRETARY") {
-        setSummon(event.payload);
-        realtimeBus.playSummonChime();
-        toast.error(`🚨 URGENT: ${event.payload.doctorName} is calling you to ${event.payload.room}!`, {
+  console.log("🟢 1 - SummonModal mounted");
+  console.log("🟢 2 - About to subscribe to realtimeBus");
+
+  const unsub = realtimeBus.subscribe((event: RealtimeEvent) => {
+    console.log("📩 3 - Secretary received:", event);
+
+    if (event.type === "SUMMON_SECRETARY") {
+      setSummon(event.payload);
+
+      realtimeBus.playSummonChime();
+
+      toast.error(
+        `🚨 URGENT: ${event.payload.doctorName} is calling you to ${event.payload.room}!`,
+        {
           duration: 10000,
-        });
-      } else if (event.type === "DISMISS_SUMMON") {
-        setSummon(null);
-      }
-    });
+        }
+      );
+    } else if (event.type === "DISMISS_SUMMON") {
+      setSummon(null);
+    }
+  });
 
-    return () => unsub();
-  }, []);
+   
 
-  if (!summon) return null;
-
-  const handleAcknowledge = () => {
-    realtimeBus.publish({ type: "DISMISS_SUMMON", payload: { by: "Secretary" } });
-    setSummon(null);
+  return () => {
+     
+    unsub();
   };
+}, []);
 
+if (!summon) return null;
+
+const handleAcknowledge = () => {
+  realtimeBus.publish({
+    type: "DISMISS_SUMMON",
+    payload: {
+      by: "Secretary",
+    },
+  });
+
+  setSummon(null);
+};
+////////////////////////////////////
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-lg bg-white dark:bg-[#131E2E] rounded-3xl p-8 shadow-2xl border-4 border-red-500 animate-in zoom-in-95 duration-200 text-center space-y-6">
