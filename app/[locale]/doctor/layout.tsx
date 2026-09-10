@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
-  LayoutDashboard, Calendar, CalendarCheck, BarChart2,
-  MessageSquare, Bell, Users, User, BellRing, MessageCircle, Menu, DollarSign
+  LayoutDashboard,
+  Calendar,
+  CalendarCheck,
+  BarChart2,
+  MessageSquare,
+  Bell,
+  Users,
+  User,
+  BellRing,
+  MessageCircle,
+  Menu,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/Logo";
 import { UserMenu } from "@/components/layout/UserMenu";
-import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
-import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { DiscreetAlert } from "@/components/shared/DiscreetAlert";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -21,35 +29,146 @@ import { realtimeBus } from "@/lib/realtimeService";
 import { toast } from "sonner";
 
 const navItems = [
-  { href: "dashboard", labelEn: "Dashboard", labelAr: "لوحة التحكم", icon: LayoutDashboard },
-  { href: "appointments", labelEn: "Appointments", labelAr: "المواعيد", icon: CalendarCheck },
-  { href: "schedule", labelEn: "Schedule", labelAr: "الجدول", icon: Calendar },
-  { href: "finance", labelEn: "Earnings & Finance", labelAr: "المالية والأرباح", icon: DollarSign },
-  { href: "reports", labelEn: "Reports", labelAr: "التقارير", icon: BarChart2 },
-  { href: "communications", labelEn: "Staff Chat & Comms", labelAr: "المحادثات والتواصل الداخلي", icon: MessageSquare },
-  { href: "notifications", labelEn: "Notifications", labelAr: "الإشعارات", icon: Bell },
-  { href: "team", labelEn: "My Team", labelAr: "الفريق", icon: Users },
-  { href: "whatsapp", labelEn: "WhatsApp", labelAr: "واتساب", icon: MessageCircle },
+  {
+    href: "dashboard",
+    labelEn: "Dashboard",
+    labelAr: "لوحة التحكم",
+    icon: LayoutDashboard,
+  },
+  {
+    href: "appointments",
+    labelEn: "Appointments",
+    labelAr: "المواعيد",
+    icon: CalendarCheck,
+  },
+  {
+    href: "schedule",
+    labelEn: "Schedule",
+    labelAr: "الجدول",
+    icon: Calendar,
+  },
+  {
+    href: "finance",
+    labelEn: "Earnings & Finance",
+    labelAr: "المالية والأرباح",
+    icon: DollarSign,
+  },
+  {
+    href: "reports",
+    labelEn: "Reports",
+    labelAr: "التقارير",
+    icon: BarChart2,
+  },
+  {
+    href: "communications",
+    labelEn: "Staff Chat & Comms",
+    labelAr: "المحادثات والتواصل الداخلي",
+    icon: MessageSquare,
+  },
+  {
+    href: "notifications",
+    labelEn: "Notifications",
+    labelAr: "الإشعارات",
+    icon: Bell,
+  },
+  {
+    href: "team",
+    labelEn: "My Team",
+    labelAr: "الفريق",
+    icon: Users,
+  },
+  {
+    href: "whatsapp",
+    labelEn: "WhatsApp",
+    labelAr: "واتساب",
+    icon: MessageCircle,
+  },
 ];
 
-export default function DoctorLayout({ children }: { children: React.ReactNode }) {
+type DoctorProfile = {
+  name: string;
+  email: string;
+  specialty: string | null;
+};
+
+type Clinic = {
+  name: string;
+};
+
+type ProfileResponse = {
+  success: boolean;
+  user: DoctorProfile;
+  clinic: Clinic | null;
+  error?: string;
+};
+
+export default function DoctorLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const locale = pathname.split("/")[1] || "en";
   const isRTL = locale === "ar";
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const [doctor, setDoctor] = useState<DoctorProfile | null>(null);
+  const [clinic, setClinic] = useState<Clinic | null>(null);
+
+  useEffect(() => {
+    async function loadDoctorProfile() {
+      try {
+        const response = await fetch("/api/doctor/profile");
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data: ProfileResponse = await response.json();
+
+        if (data.success) {
+          setDoctor(data.user);
+          setClinic(data.clinic);
+        }
+      } catch (error) {
+        console.error("Failed to load doctor profile:", error);
+      }
+    }
+
+    loadDoctorProfile();
+  }, []);
+
   const handleSummonSecretary = () => {
     realtimeBus.publish({
       type: "SUMMON_SECRETARY",
       payload: {
-        doctorName: "Dr. Clinical Lead",
+        doctorName: doctor?.name || "Doctor",
         room: "Examination Room #1",
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
         urgent: true,
       },
     });
-    toast.info(isRTL ? "🚨 تم إرسال جرس وتنبيه استدعاء السكرتيرة فوراً!" : "🚨 Secretary summoned to Exam Room #1!");
+
+    toast.info(
+      isRTL
+        ? "🚨 تم إرسال جرس وتنبيه استدعاء السكرتيرة فوراً!"
+        : "🚨 Secretary summoned to Exam Room #1!"
+    );
   };
+
+  const doctorName = doctor?.name || "Doctor";
+  const doctorEmail = doctor?.email || "";
+  const doctorSpecialty = doctor?.specialty || "Medical Practice";
+  const clinicName = clinic?.name || "";
+
+  const headerTitle = isRTL
+    ? `د. ${doctorName.replace(/^Dr\.\s*/i, "")}${clinicName ? ` — ${clinicName}` : ""}`
+    : `Dr. ${doctorName.replace(/^Dr\.\s*/i, "")}${
+        clinicName ? ` — ${clinicName}` : ""
+      }`;
 
   return (
     <AuthGuard allowedRole="doctor">
@@ -86,6 +205,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
           <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
             {navItems.map(({ href, labelEn, labelAr, icon: Icon }) => {
               const isActive = pathname.includes(`/doctor/${href}`);
+
               return (
                 <Link
                   key={href}
@@ -97,7 +217,11 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                       : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                   )}
                 >
-                  <Icon size={16} className={isActive ? "text-white" : "text-slate-400"} />
+                  <Icon
+                    size={16}
+                    className={isActive ? "text-white" : "text-slate-400"}
+                  />
+
                   <span>{isRTL ? labelAr : labelEn}</span>
                 </Link>
               );
@@ -125,7 +249,6 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
         <div
           className={cn(
             "flex-1 flex flex-col min-w-0",
-            // Desktop: offset by sidebar width. Mobile: no offset
             "md:transition-[margin]"
           )}
           style={{
@@ -151,11 +274,14 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                   className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
                   aria-label="Open sidebar"
                 >
-                  <Menu size={20} className="text-slate-600 dark:text-slate-400" />
+                  <Menu
+                    size={20}
+                    className="text-slate-600 dark:text-slate-400"
+                  />
                 </button>
 
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate hidden sm:block">
-                  {isRTL ? "د. أحمد حسام — عيادات النور التخصصية" : "Dr. Clinical Lead — Medical Practice"}
+                  {headerTitle}
                 </span>
 
                 {/* URGENT SUMMON BUTTON */}
@@ -165,26 +291,37 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                   title="Immediately summon secretary to examination room"
                 >
                   <BellRing size={14} className="animate-pulse" />
-                  <span className="hidden xs:inline">{isRTL ? "استدعاء السكرتيرة" : "Summon Secretary"}</span>
-                  <span className="xs:hidden">{isRTL ? "استدعاء" : "Summon"}</span>
+
+                  <span className="hidden xs:inline">
+                    {isRTL ? "استدعاء السكرتيرة" : "Summon Secretary"}
+                  </span>
+
+                  <span className="xs:hidden">
+                    {isRTL ? "استدعاء" : "Summon"}
+                  </span>
                 </button>
               </div>
 
               <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                <NotificationBell role="doctor" locale={locale} isRTL={false} />
-                {/* <ThemeToggle /> — Temporarily disabled: Enforcing Dark Mode */}
-                {/* <span className="hidden sm:block"><LanguageSwitcher /></span> — Temporarily disabled: Enforcing English */}
+                <NotificationBell
+                  role="doctor"
+                  locale={locale}
+                  isRTL={false}
+                />
+
                 <UserMenu
-                  name="Dr. Ahmed Hossam"
+                  name={doctorName}
                   role="Doctor"
-                  email="doctor@doctech.com"
+                  email={doctorEmail}
                   color="#3368A0"
                 />
               </div>
             </header>
 
             {/* Page Content — add bottom padding on mobile for BottomNav */}
-            <main className="flex-1 p-3 sm:p-6 overflow-auto pb-20 md:pb-6">{children}</main>
+            <main className="flex-1 p-3 sm:p-6 overflow-auto pb-20 md:pb-6">
+              {children}
+            </main>
           </div>
         </div>
 
