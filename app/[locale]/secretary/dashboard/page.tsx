@@ -38,9 +38,9 @@ export default async function SecretaryDashboardPage({
           <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">
             {isRTL ? "مركز عمليات السكرتارية" : "Secretary Operations Center"}
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+          {/* <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">
             {isRTL ? "سارة جنكينز • عيادة الأمل" : "Sarah Jenkins • Al-Amal Clinic"}
-          </p>
+          </p> */}
         </div>
 
         <div className="flex items-center gap-3">
@@ -139,3 +139,6 @@ export default async function SecretaryDashboardPage({
     </div>
   );
 }
+
+
+
