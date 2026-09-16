@@ -40,13 +40,14 @@ export async function GET() {
         user: doctor,
       });
     }
-
+ 
     const { data: secretary, error: secretaryError } = await supabase
       .from("secretaries")
-      .select(
-        "id, clerk_user_id, email, name, avatar_url, status, clinic_id"
-      )
+
+      .select("id, clerk_user_id, email, name, phone, permissions, avatar_url, status, clinic_id")
+  
       .eq("clerk_user_id", userId)
+
       .maybeSingle();
 
     if (secretaryError) {

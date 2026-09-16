@@ -1,17 +1,28 @@
+
+
+
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
-  LayoutDashboard, Calendar, CalendarCheck, BarChart2,
-  MessageSquare, Bell, Users, User, MessageCircle, Send, Menu, DollarSign
+  LayoutDashboard,
+  Calendar,
+  CalendarCheck,
+  BarChart2,
+  MessageSquare,
+  Bell,
+  Users,
+  User,
+  MessageCircle,
+  Send,
+  Menu,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/Logo";
 import { UserMenu } from "@/components/layout/UserMenu";
-import { LanguageSwitcher } from "@/components/shared/LanguageSwitcher";
-import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { SummonModal } from "@/components/shared/SummonModal";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -21,34 +32,129 @@ import { realtimeBus } from "@/lib/realtimeService";
 import { toast } from "sonner";
 
 const navItems = [
-  { href: "dashboard", labelEn: "Dashboard", labelAr: "لوحة التحكم", icon: LayoutDashboard },
-  { href: "appointments", labelEn: "Appointments", labelAr: "المواعيد", icon: CalendarCheck },
-  { href: "finance", labelEn: "Billing / Cashier", labelAr: "الخزينة والمدفوعات", icon: DollarSign },
-  { href: "schedule", labelEn: "Schedule", labelAr: "الجدول", icon: Calendar },
-  { href: "patients", labelEn: "Patients", labelAr: "المرضى", icon: Users },
-  { href: "reports", labelEn: "Reports", labelAr: "التقارير", icon: BarChart2 },
-  { href: "whatsapp", labelEn: "WhatsApp", labelAr: "واتساب", icon: MessageCircle },
-  { href: "communications", labelEn: "Staff Chat & Comms", labelAr: "المحادثات والتواصل الداخلي", icon: MessageSquare },
-  { href: "notifications", labelEn: "Notifications", labelAr: "الإشعارات", icon: Bell },
+  {
+    href: "dashboard",
+    labelEn: "Dashboard",
+    labelAr: "ظ„ظˆطط© ط§ظ„طھطظƒظ…",
+    icon: LayoutDashboard,
+  },
+  {
+    href: "appointments",
+    labelEn: "Appointments",
+    labelAr: "ط§ظ„ظ…ظˆط§ط¹ظٹط¯",
+    icon: CalendarCheck,
+  },
+  {
+    href: "finance",
+    labelEn: "Billing / Cashier",
+    labelAr: "ط§ظ„ط®ط²ظٹظ†ط© ظˆط§ظ„ظ…ط¯ظپظˆط¹ط§طھ",
+    icon: DollarSign,
+  },
+  {
+    href: "schedule",
+    labelEn: "Schedule",
+    labelAr: "ط§ظ„ط¬ط¯ظˆظ„",
+    icon: Calendar,
+  },
+  {
+    href: "patients",
+    labelEn: "Patients",
+    labelAr: "ط§ظ„ظ…ط±ط¶ظ‰",
+    icon: Users,
+  },
+  {
+    href: "reports",
+    labelEn: "Reports",
+    labelAr: "ط§ظ„طھظ‚ط§ط±ظٹط±",
+    icon: BarChart2,
+  },
+  {
+    href: "whatsapp",
+    labelEn: "WhatsApp",
+    labelAr: "ظˆط§طھط³ط§ط¨",
+    icon: MessageCircle,
+  },
+  {
+    href: "communications",
+    labelEn: "Staff Chat & Comms",
+    labelAr: "ط§ظ„ظ…طط§ط¯ط«ط§طھ ظˆط§ظ„طھظˆط§طµظ„ ط§ظ„ط¯ط§ط®ظ„ظٹ",
+    icon: MessageSquare,
+  },
+  {
+    href: "notifications",
+    labelEn: "Notifications",
+    labelAr: "ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ",
+    icon: Bell,
+  },
 ];
 
-export default function SecretaryLayout({ children }: { children: React.ReactNode }) {
+interface Secretary {
+  id: string;
+  clerk_user_id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  permissions: string[];
+  avatar_url: string | null;
+  status: "PENDING" | "ACTIVE" | "INACTIVE";
+  clinic_id: string;
+}
+
+export default function SecretaryLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const locale = pathname.split("/")[1] || "en";
   const isRTL = locale === "ar";
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [secretary, setSecretary] = useState<Secretary | null>(null);
+
+  useEffect(() => {
+    const fetchSecretary = async () => {
+      try {
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.role === "secretary") {
+          setSecretary(data.user);
+        }
+      } catch (error) {
+        console.error("Failed to load secretary data:", error);
+      }
+    };
+
+    fetchSecretary();
+  }, []);
 
   const handleSendQuickNote = () => {
-    const note = prompt("Enter quiet note for Dr. Clinical Lead (will appear discreetly):", "Patient Ahmed Hassan is waiting outside.");
+    const note = prompt(
+      "Enter quiet note for Dr. Clinical Lead (will appear discreetly):",
+      "Patient Ahmed Hassan is waiting outside."
+    );
+
     if (note) {
       realtimeBus.publish({
         type: "SECRETARY_DISCREET_ALERT",
         payload: {
           message: note,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
         },
       });
-      toast.success(isRTL ? "تم إرسال التنبيه الهادئ للطبيب" : "Quiet note sent to Doctor screen");
+
+      toast.success(
+        isRTL
+          ? "طھظ… ط¥ط±ط³ط§ظ„ ط§ظ„طھظ†ط¨ظٹظ‡ ط§ظ„ظ‡ط§ط¯ط¦ ظ„ظ„ط·ط¨ظٹط¨"
+          : "Quiet note sent to Doctor screen"
+      );
     }
   };
 
@@ -87,6 +193,7 @@ export default function SecretaryLayout({ children }: { children: React.ReactNod
           <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
             {navItems.map(({ href, labelEn, labelAr, icon: Icon }) => {
               const isActive = pathname.includes(`/secretary/${href}`);
+
               return (
                 <Link
                   key={href}
@@ -98,7 +205,12 @@ export default function SecretaryLayout({ children }: { children: React.ReactNod
                       : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                   )}
                 >
-                  <Icon size={16} className={isActive ? "text-white" : "text-slate-400"} />
+                  <Icon
+                    size={16}
+                    className={
+                      isActive ? "text-white" : "text-slate-400"
+                    }
+                  />
                   <span>{isRTL ? labelAr : labelEn}</span>
                 </Link>
               );
@@ -117,7 +229,11 @@ export default function SecretaryLayout({ children }: { children: React.ReactNod
               )}
             >
               <User size={16} />
-              <span>{isRTL ? "الملف الشخصي" : "Profile"}</span>
+              <span>
+                {isRTL
+                  ? "ط§ظ„ظ…ظ„ظپ ط§ظ„ط´ط®طµظٹ"
+                  : "Profile"}
+              </span>
             </Link>
           </div>
         </aside>
@@ -142,40 +258,58 @@ export default function SecretaryLayout({ children }: { children: React.ReactNod
                   className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
                   aria-label="Open sidebar"
                 >
-                  <Menu size={20} className="text-slate-600 dark:text-slate-400" />
+                  <Menu
+                    size={20}
+                    className="text-slate-600 dark:text-slate-400"
+                  />
                 </button>
 
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate hidden sm:block">
-                  {isRTL ? "سارة جنكينز — مكتب الاستقبال" : "Sarah Jenkins — Reception Desk"}
+                  {isRTL
+                    ? `${secretary?.name || "..."} — مكتب الاستقبال`
+                    : `${secretary?.name || "..."} — Reception Desk`}
                 </span>
 
                 {/* Send Discreet Note Button */}
                 <button
                   onClick={handleSendQuickNote}
-                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-[#36ADA3] border border-[#36ADA3]/40 text-[11px] sm:text-xs font-bold hover:bg-teal-100 transition-all cursor-pointer shrink-0"
+                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-[#36ADA3] border border-[#36ADA3]/40 text-[11px] sm:text-xs font-boldhover:bg-teal-100 transition-all cursor-pointer shrink-0"
                   title="Send a quiet note that appears discreetly on doctor screen without alarming the patient"
                 >
                   <Send size={13} />
-                  <span className="hidden sm:inline">{isRTL ? "تنبيه هادئ للطبيب" : "Quiet Note to Doctor"}</span>
-                  <span className="sm:hidden">{isRTL ? "تنبيه" : "Note"}</span>
+
+                  <span className="hidden sm:inline">
+                    {isRTL
+                      ? "طھظ†ط¨ظٹظ‡ ظ‡ط§ط¯ط¦ ظ„ظ„ط·ط¨ظٹط¨"
+                      : "Quiet Note to Doctor"}
+                  </span>
+
+                  <span className="sm:hidden">
+                    {isRTL ? "طھظ†ط¨ظٹظ‡" : "Note"}
+                  </span>
                 </button>
               </div>
 
               <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                <NotificationBell role="secretary" locale={locale} isRTL={false} />
-                {/* <ThemeToggle /> — Temporarily disabled: Enforcing Dark Mode */}
-                {/* <span className="hidden sm:block"><LanguageSwitcher /></span> — Temporarily disabled: Enforcing English */}
+                <NotificationBell
+                  role="secretary"
+                  locale={locale}
+                  isRTL={false}
+                />
+
                 <UserMenu
-                  name="Sarah Jenkins"
+                  name={secretary?.name || "Secretary"}
                   role="Secretary"
-                  email="sarah.j@doctech-clinic.com"
+                  email={secretary?.email || ""}
                   color="#36ADA3"
                 />
               </div>
             </header>
 
             {/* Page Content — add bottom padding on mobile for BottomNav */}
-            <main className="flex-1 p-3 sm:p-6 overflow-auto pb-20 md:pb-6">{children}</main>
+            <main className="flex-1 p-3 sm:p-6 overflow-auto pb-20 md:pb-6">
+              {children}
+            </main>
           </div>
         </div>
 
