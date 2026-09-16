@@ -1,174 +1,382 @@
+
+
+
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
-  Users, UserPlus, Mail, Phone, Clock, Shield, Edit2, Trash2,
-  Check, X, Search, Lock, ShieldCheck, Plus, AlertTriangle
+  UserPlus,
+  Mail,
+  Phone,
+  Clock,
+  Edit2,
+  Trash2,
+  X,
+  Search,
+  ShieldCheck,
+  AlertTriangle,
+  Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 
-export interface StaffMember {
+
+
+interface Secretary {
   id: string;
+  clerk_user_id: string;
   name: string;
   email: string;
-  phone: string;
-  role: "Head Secretary" | "Receptionist" | "Clinical Assistant" | "Billing Officer";
-  status: "ACTIVE" | "SUSPENDED";
-  lastActive: string;
-  permissions: string[]; // ["appointments", "patients", "billing", "whatsapp", "reports"]
+  phone: string | null;
+  permissions: string[];
+  avatar_url: string | null;
+  status: "PENDING" | "ACTIVE" | "INACTIVE";
+  clinic_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 const AVAILABLE_PERMISSIONS = [
-  { id: "appointments", label: "Appointments & Booking (حجز وإدارة المواعيد)" },
-  { id: "patients", label: "Patient Directory & EMR (ملفات وسجلات المرضى)" },
-  { id: "billing", label: "Billing & Cashier (الخزينة والتحصيل المالي)" },
-  { id: "whatsapp", label: "WhatsApp Chat & Comms (محادثات الواتساب والتواصل)" },
-  { id: "reports", label: "Medical Inquiries & Reports (فرز التقارير الطبية)" },
+  {
+    id: "appointments",
+    label: "Appointments & Booking (حجز وإدارة المواعيد)",
+  },
+  {
+    id: "patients",
+    label: "Patient Directory & EMR (ملفات وسجلات المرضى)",
+  },
+  {
+    id: "billing",
+    label: "Billing & Cashier (الخزينة والتحصيل المالي)",
+  },
+  {
+    id: "whatsapp",
+    label: "WhatsApp Chat & Comms (محادثات الواتساب والتواصل)",
+  },
+  {
+    id: "reports",
+    label: "Medical Inquiries & Reports (فرز التقارير الطبية)",
+  },
 ];
 
-const initialStaff: StaffMember[] = [
-  {
-    id: "STF-01",
-    name: "Sarah Jenkins",
-    email: "sarah.j@doctech-clinic.com",
-    phone: "+20 101 234 5678",
-    role: "Head Secretary",
-    status: "ACTIVE",
-    lastActive: "Just now",
-    permissions: ["appointments", "patients", "billing", "whatsapp", "reports"],
-  },
-  {
-    id: "STF-02",
-    name: "Dina Mansour",
-    email: "dina.m@doctech-clinic.com",
-    phone: "+20 102 345 6789",
-    role: "Receptionist",
-    status: "ACTIVE",
-    lastActive: "2 hours ago",
-    permissions: ["appointments", "patients", "whatsapp"],
-  },
-  {
-    id: "STF-03",
-    name: "Hossam Zaki",
-    email: "hossam.z@doctech-clinic.com",
-    phone: "+20 103 456 7890",
-    role: "Billing Officer",
-    status: "ACTIVE",
-    lastActive: "Yesterday",
-    permissions: ["appointments", "billing"],
-  },
-];
+const DEFAULT_PERMISSIONS = ["appointments", "patients"];
+
+
+
+const getInitials = (name: string) => {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+};
+
+const formatLastActive = (date: string) => {
+  if (!date) return "Unknown";
+
+  const createdAt = new Date(date);
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return "Unknown";
+  }
+
+  const diffMs = Date.now() - createdAt.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  if (diffHours < 24)
+    return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 30) return `${diffDays} days ago`;
+
+  return createdAt.toLocaleDateString();
+};
+
+const getStatusClasses = (status: Secretary["status"]) => {
+  switch (status) {
+    case "ACTIVE":
+      return "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800";
+
+    case "PENDING":
+      return "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800";
+
+    case "INACTIVE":
+      return "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800";
+
+    default:
+      return "bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700";
+  }
+};
 
 export default function DoctorTeamPage() {
   const params = useParams();
   const locale = (params?.locale as string) || "en";
+  const [showPassword, setShowPassword] = useState(false);
+  const [staffList, setStaffList] = useState<Secretary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
-  const [staffList, setStaffList] = useState<StaffMember[]>(initialStaff);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState("all");
 
-  // Modal States
+  // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
-  const [memberToDelete, setMemberToDelete] = useState<StaffMember | null>(null);
+  const [editingMember, setEditingMember] = useState<Secretary | null>(null);
+  const [memberToDelete, setMemberToDelete] = useState<Secretary | null>(null);
 
-  // Form State for Create
+  // Create form
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
-    role: "Receptionist" as StaffMember["role"],
     password: "",
-    permissions: ["appointments", "patients"] as string[],
+    permissions: DEFAULT_PERMISSIONS,
   });
 
-  const handleTogglePermission = (permId: string, isEditing = false) => {
-    if (isEditing && editingMember) {
-      const exists = editingMember.permissions.includes(permId);
-      const updated = exists
-        ? editingMember.permissions.filter((p) => p !== permId)
-        : [...editingMember.permissions, permId];
-      setEditingMember({ ...editingMember, permissions: updated });
-    } else {
-      const exists = formData.permissions.includes(permId);
-      const updated = exists
-        ? formData.permissions.filter((p) => p !== permId)
-        : [...formData.permissions, permId];
-      setFormData({ ...formData, permissions: updated });
+  /**
+   * Fetch all secretaries belonging to the doctor's clinic.
+   */
+  const fetchStaff = async () => {
+    try {
+      setIsLoading(true);
+      setLoadError("");
+
+      const response = await fetch("/api/doctor/secretaries", {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const responseText = await response.text();
+
+      let data: {
+        success?: boolean;
+        users?: Secretary[];
+        error?: string;
+      };
+
+      try {
+        data = responseText
+          ? JSON.parse(responseText)
+          : {
+              success: false,
+              error: `Empty response from server (${response.status})`,
+            };
+      } catch {
+        console.error("Invalid JSON response:", responseText);
+
+        throw new Error(
+          `Server returned an invalid response (${response.status})`
+        );
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to load staff accounts");
+      }
+
+      setStaffList(data.users ?? []);
+    } catch (error) {
+      console.error("Failed to load staff:", error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to load staff accounts";
+
+      setLoadError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // 1. CREATE
-  const handleCreateMember = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name || !formData.email) return;
+  useEffect(() => {
+    fetchStaff();
+  }, []);
 
-    const newMember: StaffMember = {
-      id: `STF-0${staffList.length + 1}`,
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone || "+20 100 000 0000",
-      role: formData.role,
-      status: "ACTIVE",
-      lastActive: "Never",
-      permissions: formData.permissions,
-    };
-
-    setStaffList([...staffList, newMember]);
-    setIsCreateModalOpen(false);
+  const resetCreateForm = () => {
     setFormData({
       name: "",
       email: "",
       phone: "",
-      role: "Receptionist",
       password: "",
-      permissions: ["appointments", "patients"],
+      permissions: DEFAULT_PERMISSIONS,
     });
-    toast.success(`✅ Staff member "${newMember.name}" account created successfully! Credentials active.`);
+    setShowPassword(false);
   };
 
-  // 2. UPDATE
+  const handleTogglePermission = (permissionId: string) => {
+    setFormData((prev) => {
+      const exists = prev.permissions.includes(permissionId);
+
+      return {
+        ...prev,
+        permissions: exists
+          ? prev.permissions.filter((permission) => permission !== permissionId)
+          : [...prev.permissions, permissionId],
+      };
+    });
+  };
+
+  /**
+   * CREATE
+   *
+   * Creates:
+   * 1. Real Clerk user
+   * 2. Real Supabase secretary record
+   */
+  const handleCreateMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.name.trim()) {
+      toast.error("Full name is required.");
+      return;
+    }
+
+    if (!formData.email.trim()) {
+      toast.error("Email address is required.");
+      return;
+    }
+
+    
+if (formData.password.length < 15) {
+  toast.error("Password must be at least 15 characters.");
+  return;
+}
+
+if (!/[A-Z]/.test(formData.password)) {
+  toast.error("Password must contain at least one uppercase letter.");
+  return;
+}
+
+if (!/[a-z]/.test(formData.password)) {
+  toast.error("Password must contain at least one lowercase letter.");
+  return;
+}
+
+if (!/[0-9]/.test(formData.password)) {
+  toast.error("Password must contain at least one number.");
+  return;
+}
+
+if (!/[^A-Za-z0-9]/.test(formData.password)) {
+  toast.error("Password must contain at least one special character.");
+  return;
+}
+    try {
+      setIsCreating(true);
+
+      const response = await fetch("/api/doctor/secretaries", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const responseText = await response.text();
+
+      let data: {
+        success?: boolean;
+        user?: Secretary;
+        error?: string;
+      };
+
+      try {
+        data = responseText
+          ? JSON.parse(responseText)
+          : {
+              success: false,
+              error: `Empty response from server (${response.status})`,
+            };
+      } catch {
+        console.error("Invalid JSON response:", responseText);
+
+        throw new Error(
+          `Server returned an invalid response (${response.status})`
+        );
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to create staff account");
+      }
+
+      toast.success(
+        `Staff member "${data.user?.name || formData.name}" account created successfully!`
+      );
+
+      setIsCreateModalOpen(false);
+      resetCreateForm();
+
+      await fetchStaff();
+    } catch (error) {
+      console.error("Create staff error:", error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to create staff account";
+
+      toast.error(message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  /**
+   * EDIT
+   *
+   * The current backend supports GET + POST only.
+   * We keep the existing UI modal without pretending that
+   * changes were persisted to the database.
+   */
   const handleUpdateMember = (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!editingMember) return;
 
-    setStaffList((prev) =>
-      prev.map((m) => (m.id === editingMember.id ? editingMember : m))
+    toast.info(
+      "Staff editing will be connected to the database when the update API is added."
     );
+
     setEditingMember(null);
-    toast.success(`✅ Staff member "${editingMember.name}" updated successfully!`);
   };
 
-  // 3. DELETE
+  /**
+   * DELETE
+   *
+   * The current backend does not expose DELETE yet.
+   * Do not fake a successful deletion locally.
+   */
   const handleConfirmDelete = () => {
     if (!memberToDelete) return;
 
-    setStaffList((prev) => prev.filter((m) => m.id !== memberToDelete.id));
-    toast.success(`Staff account for "${memberToDelete.name}" deleted.`);
+    toast.info(
+      "Staff deletion will be connected to Clerk and the database when the delete API is added."
+    );
+
     setMemberToDelete(null);
   };
 
-  // Toggle status
-  const handleToggleStatus = (id: string) => {
-    setStaffList((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? { ...m, status: m.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" }
-          : m
-      )
-    );
-    toast.info("Staff member status updated.");
-  };
+  /**
+   * Search
+   */
+  const filtered = staffList.filter((member) => {
+    const query = searchTerm.toLowerCase().trim();
 
-  const filtered = staffList.filter((m) => {
-    const matchesSearch =
-      m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.phone.includes(searchTerm);
-    const matchesRole = filterRole === "all" || m.role === filterRole;
-    return matchesSearch && matchesRole;
+    if (!query) return true;
+
+    return (
+      member.name.toLowerCase().includes(query) ||
+      member.email.toLowerCase().includes(query) ||
+      (member.phone ?? "").toLowerCase().includes(query)
+    );
   });
 
   return (
@@ -178,13 +386,17 @@ export default function DoctorTeamPage() {
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950/40 text-[#1A4B8C] dark:text-blue-400 border border-blue-100 dark:border-blue-900 mb-1.5">
             <ShieldCheck size={13} />
-            <span>Clinic Staff & Role Management (CRUD)</span>
+
+            <span>Clinic Staff & Access Management</span>
           </div>
+
           <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
             My Clinic Team & Staff Accounts
           </h1>
+
           <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-            Directly create staff accounts, assign granular permissions, edit credentials, or deactivate members
+            Directly create staff accounts, assign granular permissions, and
+            manage your clinic team
           </p>
         </div>
 
@@ -194,6 +406,7 @@ export default function DoctorTeamPage() {
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1A4B8C] hover:bg-[#153E75] text-white text-xs font-bold shadow-md shadow-blue-900/15 transition-all cursor-pointer shrink-0"
         >
           <UserPlus size={16} />
+
           <span>Create New Staff Account</span>
         </button>
       </div>
@@ -202,6 +415,7 @@ export default function DoctorTeamPage() {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-[#131E2E] p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="relative w-full sm:w-80">
           <Search className="doctech-input-icon" size={16} />
+
           <input
             type="text"
             placeholder="Search staff name, email, or phone..."
@@ -211,31 +425,71 @@ export default function DoctorTeamPage() {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          {["all", "Head Secretary", "Receptionist", "Billing Officer", "Clinical Assistant"].map((role) => (
-            <button
-              key={role}
-              onClick={() => setFilterRole(role)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                filterRole === role
-                  ? "bg-[#1A4B8C] text-white shadow-xs"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-              }`}
-            >
-              {role === "all" ? "All Roles" : role}
-            </button>
-          ))}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">
+            {staffList.length} Staff
+          </span>
         </div>
       </div>
 
-      {/* Staff Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.length === 0 ? (
-          <div className="col-span-full p-12 text-center text-xs text-slate-400 bg-white dark:bg-[#131E2E] rounded-2xl border border-slate-200/80 dark:border-slate-800">
-            No staff members found matching criteria.
+      {/* Error State */}
+      {loadError && !isLoading && (
+        <div className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30">
+          <div>
+            <p className="text-xs font-bold text-red-700 dark:text-red-400">
+              Failed to load staff accounts
+            </p>
+
+            <p className="text-[11px] text-red-600/80 dark:text-red-400/80 mt-1">
+              {loadError}
+            </p>
           </div>
-        ) : (
-          filtered.map((member) => (
+
+          <button
+            onClick={fetchStaff}
+            className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Staff Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((item) => (
+            <div
+              key={item}
+              className="bg-white dark:bg-[#131E2E] rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs animate-pulse"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+
+                <div className="space-y-2 flex-1">
+                  <div className="h-3 w-28 bg-slate-200 dark:bg-slate-800 rounded" />
+                  <div className="h-2.5 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
+                </div>
+              </div>
+
+              <div className="space-y-2 mt-5">
+                <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="h-2.5 w-3/4 bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="h-2.5 w-1/2 bg-slate-200 dark:bg-slate-800 rounded" />
+              </div>
+
+              <div className="h-16 bg-slate-100 dark:bg-slate-900 rounded-xl mt-5" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="col-span-full p-12 text-center text-xs text-slate-400 bg-white dark:bg-[#131E2E] rounded-2xl border border-slate-200/80 dark:border-slate-800">
+          {searchTerm
+            ? "No staff members found matching your search."
+            : "No staff accounts have been created yet."}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((member) => (
             <div
               key={member.id}
               className="bg-white dark:bg-[#131E2E] rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-blue-300 dark:hover:border-blue-900 transition-all"
@@ -244,67 +498,90 @@ export default function DoctorTeamPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-[#1A4B8C] dark:text-blue-400 font-extrabold text-sm flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900">
-                    {member.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                    {getInitials(member.name)}
                   </div>
+
                   <div className="min-w-0">
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
                       {member.name}
                     </h3>
-                    <p className="text-xs text-[#1A4B8C] dark:text-blue-400 font-semibold">{member.role}</p>
+
+                    <p className="text-xs text-[#1A4B8C] dark:text-blue-400 font-semibold">
+                      Secretary
+                    </p>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleToggleStatus(member.id)}
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full cursor-pointer transition-colors ${
-                    member.status === "ACTIVE"
-                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
-                      : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800"
-                  }`}
-                  title="Click to toggle Active/Suspended"
+                <span
+                  className={`text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${getStatusClasses(
+                    member.status
+                  )}`}
                 >
                   {member.status}
-                </button>
+                </span>
               </div>
 
               {/* Contact Info */}
               <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
                 <div className="flex items-center gap-2 truncate">
-                  <Mail size={13} className="text-slate-400 shrink-0" />
+                  <Mail
+                    size={13}
+                    className="text-slate-400 shrink-0"
+                  />
+
                   <span className="truncate">{member.email}</span>
                 </div>
+
                 <div className="flex items-center gap-2">
-                  <Phone size={13} className="text-slate-400 shrink-0" />
-                  <span>{member.phone}</span>
+                  <Phone
+                    size={13}
+                    className="text-slate-400 shrink-0"
+                  />
+
+                  <span>{member.phone || "No phone number"}</span>
                 </div>
+
                 <div className="flex items-center gap-2 text-[11px] text-slate-400">
                   <Clock size={12} />
-                  <span>Last active: {member.lastActive}</span>
+
+                  <span>
+                    Created: {formatLastActive(member.created_at)}
+                  </span>
                 </div>
               </div>
 
               {/* Assigned Permissions Tags */}
               <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] font-bold uppercase text-slate-400">Assigned Permissions:</span>
+                <span className="text-[10px] font-bold uppercase text-slate-400">
+                  Assigned Permissions:
+                </span>
+
                 <div className="flex flex-wrap gap-1">
-                  {member.permissions.map((perm) => (
-                    <span
-                      key={perm}
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 capitalize"
-                    >
-                      {perm}
+                  {member.permissions?.length > 0 ? (
+                    member.permissions.map((permission) => (
+                      <span
+                        key={permission}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 capitalize"
+                      >
+                        {permission}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[10px] text-slate-400">
+                      No permissions assigned
                     </span>
-                  ))}
+                  )}
                 </div>
               </div>
 
-              {/* Action Buttons (Edit / Delete) */}
+              {/* Action Buttons */}
               <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   onClick={() => setEditingMember({ ...member })}
                   className="flex-1 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-[#1A4B8C] dark:hover:bg-blue-950/40 dark:hover:text-blue-400 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Edit2 size={13} />
+
                   <span>Edit</span>
                 </button>
 
@@ -317,9 +594,9 @@ export default function DoctorTeamPage() {
                 </button>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* CREATE STAFF MODAL */}
       {isCreateModalOpen && (
@@ -330,13 +607,24 @@ export default function DoctorTeamPage() {
                 <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-[#1A4B8C] dark:text-blue-400 flex items-center justify-center">
                   <UserPlus size={18} />
                 </div>
+
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Create New Staff Account</h3>
-                  <p className="text-xs text-slate-400">Direct account provisioning with immediate login access</p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Create New Staff Account
+                  </h3>
+
+                  <p className="text-xs text-slate-400">
+                    Direct account provisioning with immediate login access
+                  </p>
                 </div>
               </div>
+
               <button
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={() => {
+                  if (!isCreating) {
+                    setIsCreateModalOpen(false);
+                  }
+                }}
                 className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 cursor-pointer"
               >
                 <X size={16} />
@@ -344,110 +632,166 @@ export default function DoctorTeamPage() {
             </div>
 
             <form onSubmit={handleCreateMember} className="space-y-4">
+              {/* Name + Email */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Full Name
+                  </label>
+
                   <input
                     type="text"
                     required
                     placeholder="e.g. Mariam Tarek"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        name: e.target.value,
+                      })
+                    }
                     className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Role</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value as StaffMember["role"] })}
-                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
-                  >
-                    <option value="Head Secretary">Head Secretary (رئيسة الاستقبال)</option>
-                    <option value="Receptionist">Receptionist (سكرتيرة استقبال)</option>
-                    <option value="Clinical Assistant">Clinical Assistant (مساعد طبي)</option>
-                    <option value="Billing Officer">Billing Officer (محاسب / مسؤول الخزينة)</option>
-                  </select>
-                </div>
-              </div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Email Address
+                  </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
                   <input
                     type="email"
                     required
                     placeholder="staff@clinic.com"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone (WhatsApp)</label>
-                  <input
-                    type="tel"
-                    placeholder="+20 100 000 0000"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        email: e.target.value,
+                      })
+                    }
                     className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
+              {/* Phone */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Initial Password</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Phone (WhatsApp)
+                </label>
+
                 <input
-                  type="password"
-                  required
-                  placeholder="••••••••••••"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  type="tel"
+                  placeholder="+20 100 000 0000"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      phone: e.target.value,
+                    })
+                  }
                   className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
                 />
               </div>
 
-              {/* Permissions Checkbox Matrix */}
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Initial Password
+                </label>
+                 <div className="relative">
+                <input
+                  // type="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={15}
+                  placeholder="••••••••••••••••"
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      password: e.target.value,
+                    })
+                  }
+                  className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
+                />
+                
+                  <button
+                   type="button"
+                   onClick={() => setShowPassword((prev) => !prev)}
+                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                   aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                     </button>
+                      </div>
+               
+                <p className="text-[10px] text-slate-400 mt-1">
+                      Password must be at least 15 characters.
+
+                </p>
+              </div>
+
+              {/* Permissions */}
               <div className="space-y-2 pt-2">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                   Granular Permissions & Access Control:
                 </label>
+
                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 max-h-40 overflow-y-auto">
-                  {AVAILABLE_PERMISSIONS.map((perm) => {
-                    const isChecked = formData.permissions.includes(perm.id);
+                  {AVAILABLE_PERMISSIONS.map((permission) => {
+                    const isChecked = formData.permissions.includes(
+                      permission.id
+                    );
+
                     return (
                       <label
-                        key={perm.id}
+                        key={permission.id}
                         className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none"
                       >
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => handleTogglePermission(perm.id, false)}
+                          onChange={() =>
+                            handleTogglePermission(permission.id)
+                          }
                           className="w-4 h-4 text-[#1A4B8C] rounded cursor-pointer"
                         />
-                        <span>{perm.label}</span>
+
+                        <span>{permission.label}</span>
                       </label>
                     );
                   })}
                 </div>
               </div>
 
+              {/* Actions */}
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold hover:bg-slate-200 cursor-pointer"
+                  disabled={isCreating}
+                  onClick={() => {
+                    setIsCreateModalOpen(false);
+                    resetCreateForm();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold hover:bg-slate-200 cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#1A4B8C] hover:bg-[#153E75] text-white text-xs font-bold shadow-md shadow-blue-900/15 cursor-pointer"
+                  disabled={isCreating}
+                  className="px-5 py-2 rounded-xl bg-[#1A4B8C] hover:bg-[#153E75] text-white text-xs font-bold shadow-md shadow-blue-900/15 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
                 >
-                  Create Staff Account
+                  {isCreating && <Loader2 size={14} className="animate-spin" />}
+
+                  <span>
+                    {isCreating
+                      ? "Creating Account..."
+                      : "Create Staff Account"}
+                  </span>
                 </button>
               </div>
             </form>
@@ -464,11 +808,19 @@ export default function DoctorTeamPage() {
                 <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-[#1A4B8C] dark:text-blue-400 flex items-center justify-center">
                   <Edit2 size={18} />
                 </div>
+
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Edit Staff Member</h3>
-                  <p className="text-xs text-slate-400">Update role, contact details and permissions for {editingMember.name}</p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Edit Staff Member
+                  </h3>
+
+                  <p className="text-xs text-slate-400">
+                    Update contact details and permissions for{" "}
+                    {editingMember.name}
+                  </p>
                 </div>
               </div>
+
               <button
                 onClick={() => setEditingMember(null)}
                 className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 cursor-pointer"
@@ -478,76 +830,107 @@ export default function DoctorTeamPage() {
             </div>
 
             <form onSubmit={handleUpdateMember} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={editingMember.name}
-                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
-                  />
-                </div>
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Full Name
+                </label>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Role</label>
-                  <select
-                    value={editingMember.role}
-                    onChange={(e) => setEditingMember({ ...editingMember, role: e.target.value as StaffMember["role"] })}
-                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
-                  >
-                    <option value="Head Secretary">Head Secretary</option>
-                    <option value="Receptionist">Receptionist</option>
-                    <option value="Clinical Assistant">Clinical Assistant</option>
-                    <option value="Billing Officer">Billing Officer</option>
-                  </select>
-                </div>
+                <input
+                  type="text"
+                  required
+                  value={editingMember.name}
+                  onChange={(e) =>
+                    setEditingMember({
+                      ...editingMember,
+                      name: e.target.value,
+                    })
+                  }
+                  className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
+                />
               </div>
 
+              {/* Email + Phone */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Email Address
+                  </label>
+
                   <input
                     type="email"
                     required
                     value={editingMember.email}
-                    onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
+                    onChange={(e) =>
+                      setEditingMember({
+                        ...editingMember,
+                        email: e.target.value,
+                      })
+                    }
                     className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Phone
+                  </label>
+
                   <input
                     type="tel"
-                    value={editingMember.phone}
-                    onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                    value={editingMember.phone ?? ""}
+                    onChange={(e) =>
+                      setEditingMember({
+                        ...editingMember,
+                        phone: e.target.value,
+                      })
+                    }
                     className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
-              {/* Permissions Checkbox Matrix */}
+              {/* Permissions */}
               <div className="space-y-2 pt-2">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                   Assigned Permissions:
                 </label>
+
                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 max-h-40 overflow-y-auto">
-                  {AVAILABLE_PERMISSIONS.map((perm) => {
-                    const isChecked = editingMember.permissions.includes(perm.id);
+                  {AVAILABLE_PERMISSIONS.map((permission) => {
+                    const isChecked =
+                      editingMember.permissions?.includes(permission.id);
+
                     return (
                       <label
-                        key={perm.id}
+                        key={permission.id}
                         className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none"
                       >
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => handleTogglePermission(perm.id, true)}
+                          onChange={() => {
+                            const exists =
+                              editingMember.permissions.includes(
+                                permission.id
+                              );
+
+                            setEditingMember({
+                              ...editingMember,
+                              permissions: exists
+                                ? editingMember.permissions.filter(
+                                    (item) => item !== permission.id
+                                  )
+                                : [
+                                    ...editingMember.permissions,
+                                    permission.id,
+                                  ],
+                            });
+                          }}
                           className="w-4 h-4 text-[#1A4B8C] rounded cursor-pointer"
                         />
-                        <span>{perm.label}</span>
+
+                        <span>{permission.label}</span>
                       </label>
                     );
                   })}
@@ -562,6 +945,7 @@ export default function DoctorTeamPage() {
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-[#1A4B8C] hover:bg-[#153E75] text-white text-xs font-bold shadow-md shadow-blue-900/15 cursor-pointer"
@@ -581,12 +965,21 @@ export default function DoctorTeamPage() {
             <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/50 text-red-600 flex items-center justify-center mx-auto">
               <AlertTriangle size={24} />
             </div>
+
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Staff Account?</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Delete Staff Account?
+              </h3>
+
               <p className="text-xs text-slate-400 mt-1">
-                Are you sure you want to delete <span className="font-bold text-slate-200">{memberToDelete.name}</span>? This account will immediately lose access to DOCTECH.
+                Are you sure you want to delete{" "}
+                <span className="font-bold text-slate-200">
+                  {memberToDelete.name}
+                </span>
+                ?
               </p>
             </div>
+
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={() => setMemberToDelete(null)}
@@ -594,6 +987,7 @@ export default function DoctorTeamPage() {
               >
                 Cancel
               </button>
+
               <button
                 onClick={handleConfirmDelete}
                 className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors cursor-pointer"
