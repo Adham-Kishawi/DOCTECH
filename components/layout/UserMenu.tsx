@@ -6,7 +6,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { User, LogOut, RefreshCw, ChevronDown } from "lucide-react";
+import { User, LogOut,  ChevronDown } from "lucide-react";
 import { clearSession, setSession } from "@/stores/authStore";
 import { toast } from "sonner";
 
@@ -56,35 +56,6 @@ export function UserMenu({
     }
   };
 
-  const handleSwitchRole = () => {
-    const targetRole =
-      role === "Doctor" ? "secretary" : "doctor";
-
-    setSession({
-      id:
-        targetRole === "doctor"
-          ? "doc-101"
-          : "sec-202",
-      name:
-        targetRole === "doctor"
-          ? "Dr. Clinical Lead"
-          : "Sarah Jenkins",
-      email:
-        targetRole === "doctor"
-          ? "doctor@doctech.com"
-          : "secretary@doctech.com",
-      role: targetRole,
-      clinicName: "Al-Amal Clinic",
-      avatarColor:
-        targetRole === "doctor"
-          ? "#3368A0"
-          : "#36ADA3",
-    });
-
-    router.push(
-      `/${locale}/${targetRole}/dashboard`
-    );
-  };
 
   const initials = name
     .split(" ")
@@ -155,29 +126,7 @@ export function UserMenu({
                 </span>
               </Link>
 
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  handleSwitchRole();
-                }}
-                className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-[#3368A0] dark:text-[#4B85C5] hover:bg-blue-50 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <RefreshCw size={14} />
-
-                <span>
-                  {isRTL
-                    ? `تبديل إلى لوحة ${
-                        role === "Doctor"
-                          ? "السكرتيرة"
-                          : "الطبيب"
-                      }`
-                    : `Switch to ${
-                        role === "Doctor"
-                          ? "Secretary"
-                          : "Doctor"
-                      } View`}
-                </span>
-              </button>
+         
             </div>
 
             <div className="pt-1 border-t border-slate-100 dark:border-slate-700">
