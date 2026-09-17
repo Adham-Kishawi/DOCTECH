@@ -1,6 +1,9 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
   try {
@@ -42,7 +45,7 @@ export async function GET() {
     // Get the clinic associated with the doctor.
     const { data: clinic, error: clinicError } = await supabase
       .from("clinics")
-      .select("id, name, phone, address")
+      .select("id, name, phone, address, logo_url")
       .eq("id", doctor.clinic_id)
       .maybeSingle();
 
@@ -80,6 +83,152 @@ export async function GET() {
           error instanceof Error
             ? error.message
             : "Failed to load doctor profile",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
+    // Retrieve doctor profile
+    const { data: doctor, error: doctorError } = await supabase
+      .from("doctors")
+      .select("id, clinic_id, clerk_user_id")
+      .eq("clerk_user_id", userId)
+      .maybeSingle();
+
+    if (doctorError) {
+      throw new Error(doctorError.message);
+    }
+
+    if (!doctor) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Doctor profile not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    const body = await req.json();
+    const {
+      name,
+      specialty,
+      avatar_url,
+      clinicName,
+      clinicPhone,
+      clinicAddress,
+      clinicLogo,
+    } = body;
+
+    // 1. Update Doctor record if doctor fields are provided
+    const doctorUpdates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (typeof name === "string" && name.trim()) {
+      doctorUpdates.name = name.trim();
+    }
+    if (specialty !== undefined) {
+      doctorUpdates.specialty = typeof specialty === "string" ? specialty.trim() : null;
+    }
+    if (avatar_url !== undefined) {
+      doctorUpdates.avatar_url = avatar_url || null;
+    }
+
+    const { data: updatedDoctor, error: updateDocError } = await supabase
+      .from("doctors")
+      .update(doctorUpdates)
+      .eq("id", doctor.id)
+      .select("id, clerk_user_id, email, name, specialty, avatar_url, clinic_id")
+      .single();
+
+    if (updateDocError) {
+      throw new Error(`Failed to update doctor: ${updateDocError.message}`);
+    }
+
+    // 2. Update Clinic record if clinic fields are provided
+    let updatedClinic = null;
+    const clinicUpdates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (typeof clinicName === "string" && clinicName.trim()) {
+      clinicUpdates.name = clinicName.trim();
+    }
+    if (clinicPhone !== undefined) {
+      clinicUpdates.phone = typeof clinicPhone === "string" ? clinicPhone.trim() : null;
+    }
+    if (clinicAddress !== undefined) {
+      clinicUpdates.address = typeof clinicAddress === "string" ? clinicAddress.trim() : null;
+    }
+    if (clinicLogo !== undefined) {
+      clinicUpdates.logo_url = clinicLogo || null;
+    }
+
+    if (Object.keys(clinicUpdates).length > 1) {
+      const { data: clinicData, error: updateClinicError } = await supabase
+        .from("clinics")
+        .update(clinicUpdates)
+        .eq("id", doctor.clinic_id)
+        .select("id, name, phone, address, logo_url")
+        .single();
+
+      if (updateClinicError) {
+        throw new Error(`Failed to update clinic: ${updateClinicError.message}`);
+      }
+      updatedClinic = clinicData;
+    } else {
+      const { data: existingClinic } = await supabase
+        .from("clinics")
+        .select("id, name, phone, address, logo_url")
+        .eq("id", doctor.clinic_id)
+        .maybeSingle();
+      updatedClinic = existingClinic;
+    }
+
+    // 3. Attempt to update Clerk user profile in background
+    try {
+      if (typeof name === "string" && name.trim()) {
+        const client = await clerkClient();
+        await client.users.updateUser(userId, {
+          firstName: name.trim(),
+        });
+      }
+    } catch (clerkErr) {
+      console.warn("Clerk profile sync warning:", clerkErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Profile updated successfully",
+      user: updatedDoctor,
+      clinic: updatedClinic,
+    });
+  } catch (error) {
+    console.error("Doctor profile update error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to update profile",
       },
       { status: 500 }
     );

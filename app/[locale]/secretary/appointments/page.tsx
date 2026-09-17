@@ -1,45 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { CalendarCheck, Plus, Search, Edit3, Bot, Sparkles, Clock } from "lucide-react";
+import {
+  CalendarCheck,
+  Plus,
+  Search,
+  Bot,
+  Clock,
+  User,
+  Phone,
+  CheckCircle2,
+  XCircle,
+  Clock3,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface Appointment {
   id: string;
-  time: string;
+  patientId?: string;
   patientName: string;
-  patientNameAr: string;
   patientPhone: string;
+  doctorId?: string;
   doctorName: string;
-  doctorNameAr: string;
+  doctorSpecialty?: string;
+  date: string;
+  time: string;
+  rawDate?: string;
+  duration?: number;
+  status: "confirmed" | "scheduled" | "completed" | "cancelled" | string;
   type: string;
-  typeAr: string;
-  status: "confirmed" | "scheduled" | "completed" | "cancelled";
-  source: "MANUAL" | "AI" | "WHATSAPP";
-  bookingStatus: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  source: "MANUAL" | "AI" | "WHATSAPP" | string;
+  bookingStatus: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | string;
   notes: string;
-  notesAr: string;
   fee?: number;
 }
-
-const initialAppointments: Appointment[] = [
-  { id: "APT-201", time: "09:00 AM", patientName: "Ahmed Hassan", patientNameAr: "أحمد حسن", patientPhone: "+20 100 123 4567", doctorName: "Dr. Clinical Lead", doctorNameAr: "د. أحمد حسام", type: "Follow-up", typeAr: "متابعة", status: "confirmed", source: "MANUAL", bookingStatus: "APPROVED", notes: "Blood pressure evaluation", notesAr: "تقييم ضغط الدم", fee: 350 },
-  { id: "APT-202", time: "09:30 AM", patientName: "Youssef Nabil", patientNameAr: "يوسف نبيل", patientPhone: "+20 101 234 5678", doctorName: "Dr. Clinical Lead", doctorNameAr: "د. أحمد حسام", type: "General Check-up", typeAr: "كشف عام", status: "completed", source: "MANUAL", bookingStatus: "APPROVED", notes: "Annual wellness visit", notesAr: "فحص دوري سنوي", fee: 400 },
-  { id: "APT-203", time: "10:30 AM", patientName: "Sara Ibrahim", patientNameAr: "سارة إبراهيم", patientPhone: "+20 102 345 6789", doctorName: "Dr. Clinical Lead", doctorNameAr: "د. أحمد حسام", type: "New Consultation", typeAr: "كشف جديد", status: "scheduled", source: "AI", bookingStatus: "PENDING_REVIEW", notes: "Migraine complaints via WhatsApp AI", notesAr: "شكوى صداع نصفي عبر الذكاء الاصطناعي", fee: 450 },
-  { id: "APT-204", time: "11:00 AM", patientName: "Mohamed Ali", patientNameAr: "محمد علي", patientPhone: "+20 103 456 7890", doctorName: "Dr. Clinical Lead", doctorNameAr: "د. أحمد حسام", type: "Post-Op Review", typeAr: "متابعة جراحة", status: "confirmed", source: "WHATSAPP", bookingStatus: "APPROVED", notes: "Wound assessment", notesAr: "تقييم التئام الجرح", fee: 300 },
-  { id: "APT-205", time: "01:00 PM", patientName: "Fatima Omar", patientNameAr: "فاطمة عمر", patientPhone: "+20 104 567 8901", doctorName: "Dr. Clinical Lead", doctorNameAr: "د. أحمد حسام", type: "Follow-up", typeAr: "متابعة", status: "scheduled", source: "MANUAL", bookingStatus: "APPROVED", notes: "Thyroid follow-up", notesAr: "متابعة الغدة الدرقية", fee: 350 },
-];
 
 export default function SecretaryAppointmentsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  useEffect(() => {
+    async function loadAppointments() {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/appointments");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setAppointments(json.data);
+        }
+      } catch (err) {
+        console.error("Failed to load appointments:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAppointments();
+  }, []);
 
   const pendingAICount = appointments.filter((a) => a.bookingStatus === "PENDING_REVIEW").length;
 
@@ -54,26 +79,31 @@ export default function SecretaryAppointmentsPage() {
     setAppointments((currentAppointments) =>
       currentAppointments.map((a) => (a.id === id ? { ...a, bookingStatus: "APPROVED", status: "confirmed" } : a))
     );
-    toast.success(isRTL ? "تم اعتماد الحجز وإرسال تأكيد بالواتساب للمريض ✅" : "AI booking approved & confirmation sent via WhatsApp ✅");
+    toast.success(
+      isRTL ? "تم اعتماد الحجز وإرسال تأكيد بالواتساب للمريض ✅" : "AI booking approved & confirmation sent via WhatsApp ✅"
+    );
   };
 
-  const filtered = appointments.filter((apt) => {
-    const matchesFilter =
-      filterStatus === "all"
-        ? true
-        : filterStatus === "pending_ai"
-        ? apt.bookingStatus === "PENDING_REVIEW"
-        : apt.status === filterStatus;
-    const matchesSearch =
-      apt.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      apt.patientNameAr.includes(searchTerm) ||
-      apt.patientPhone.includes(searchTerm) ||
-      apt.id.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  const filtered = useMemo(() => {
+    return appointments.filter((apt) => {
+      const matchesFilter =
+        filterStatus === "all"
+          ? true
+          : filterStatus === "pending_ai"
+          ? apt.bookingStatus === "PENDING_REVIEW"
+          : apt.status === filterStatus;
+      const q = searchTerm.toLowerCase();
+      const matchesSearch =
+        apt.patientName.toLowerCase().includes(q) ||
+        apt.patientPhone.includes(q) ||
+        apt.id.toLowerCase().includes(q) ||
+        apt.doctorName.toLowerCase().includes(q);
+      return matchesFilter && matchesSearch;
+    });
+  }, [appointments, filterStatus, searchTerm]);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-16">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white dark:bg-[#131E2E] p-4 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div>
@@ -86,8 +116,8 @@ export default function SecretaryAppointmentsPage() {
           </h1>
           <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             {isRTL
-              ? "حجز مواعيد جديدة، مراجعة طلبات المساعد الذكي، وتحديث الحالات"
-              : "Book, reschedule, approve AI booking requests, and manage patient appointments"}
+              ? "مواعيد حقيقية ومسجلة في قاعدة البيانات، مراجعة طلبات الذكاء الاصطناعي، وتحديث الحالات"
+              : "Live database appointments, approve AI booking requests, and manage patient care"}
           </p>
         </div>
 
@@ -99,7 +129,7 @@ export default function SecretaryAppointmentsPage() {
             <Bot size={15} className="text-purple-600 dark:text-purple-400" />
             <span>{isRTL ? "طلبات حجز الـ AI" : "AI Bookings"}</span>
             {pendingAICount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] flex items-center justify-center font-bold">
+              <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">
                 {pendingAICount}
               </span>
             )}
@@ -107,136 +137,168 @@ export default function SecretaryAppointmentsPage() {
 
           <Link
             href={`/${locale}/secretary/appointments/new`}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0891B2] hover:bg-[#0E7490] text-white text-xs font-bold shadow-md shadow-cyan-900/15 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0891B2] hover:bg-[#0e7490] text-white text-xs font-bold transition-all shadow-md shadow-cyan-900/15 cursor-pointer active:scale-95"
           >
-            <Plus size={16} />
-            <span>{isRTL ? "حجز موعد جديد" : "New Appointment"}</span>
+            <Plus size={15} />
+            <span>{isRTL ? "حجز موعد كشف جديد" : "New Appointment"}</span>
           </Link>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-[#131E2E] p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-        <div className="relative w-full sm:w-80">
-          <Search className="doctech-input-icon" size={16} />
-          <input
-            type="text"
-            placeholder={isRTL ? "بحث بالاسم أو الهاتف..." : "Search patient name or phone..."}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="doctech-input !h-10 text-xs"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+      {/* Filter Tabs & Search Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-[#131E2E] p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {[
-            { id: "all", en: "All", ar: "الكل" },
-            { id: "pending_ai", en: `AI Pending (${pendingAICount})`, ar: `بانتظار مراجعة AI (${pendingAICount})` },
-            { id: "confirmed", en: "Confirmed", ar: "مؤكد" },
-            { id: "scheduled", en: "Scheduled", ar: "مجدول" },
-            { id: "completed", en: "Completed", ar: "مكتمل" },
-            { id: "cancelled", en: "Cancelled", ar: "ملغى" },
-          ].map((st) => (
+            { key: "all", labelEn: "All", labelAr: "الكل" },
+            { key: "confirmed", labelEn: "Confirmed", labelAr: "مؤكد" },
+            { key: "scheduled", labelEn: "Scheduled", labelAr: "مجدول" },
+            { key: "completed", labelEn: "Completed", labelAr: "مكتمل" },
+            { key: "cancelled", labelEn: "Cancelled", labelAr: "ملغي" },
+            { key: "pending_ai", labelEn: "AI Pending", labelAr: "معلق (AI)" },
+          ].map((tab) => (
             <button
-              key={st.id}
-              onClick={() => setFilterStatus(st.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                filterStatus === st.id
+              key={tab.key}
+              onClick={() => setFilterStatus(tab.key)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                filterStatus === tab.key
                   ? "bg-[#0891B2] text-white shadow-xs"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              {isRTL ? st.ar : st.en}
+              {isRTL ? tab.labelAr : tab.labelEn}
             </button>
           ))}
         </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="doctech-input-icon" size={15} />
+          <input
+            type="text"
+            placeholder={isRTL ? "بحث باسم المريض أو الطبيب..." : "Search patient or doctor..."}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="doctech-input text-xs"
+          />
+        </div>
       </div>
 
-      {/* Appointments CRUD List */}
-      <div className="bg-white dark:bg-[#131E2E] rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="p-12 text-center text-xs text-slate-400 dark:text-slate-500">
-            {isRTL ? "لا توجد مواعيد مطابقة للبحث" : "No appointments found matching filter"}
+      {/* Content */}
+      {loading ? (
+        <div className="p-16 text-center bg-white dark:bg-[#131E2E] rounded-3xl border border-slate-200/80 dark:border-slate-800">
+          <Loader2 size={32} className="animate-spin text-[#0891B2] mx-auto mb-3" />
+          <p className="text-xs font-bold text-slate-400">
+            {isRTL ? "جاري تحميل جدول المواعيد من قاعدة البيانات..." : "Loading appointments from database..."}
+          </p>
+        </div>
+      ) : appointments.length === 0 ? (
+        <div className="p-12 sm:p-16 text-center bg-white dark:bg-[#131E2E] rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="w-16 h-16 rounded-3xl bg-cyan-50 dark:bg-cyan-950/50 text-[#0891B2] flex items-center justify-center mx-auto mb-4">
+            <CalendarCheck size={32} />
           </div>
-        ) : (
-          filtered.map((apt) => (
+          <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+            {isRTL ? "لا توجد مواعيد محجوزة حالياً" : "No Appointments Booked Yet"}
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-2 font-medium">
+            {isRTL
+              ? "قاعدة البيانات لا تحتوي على أي حجوزات بعد. يمكنك البدء بحجز أول موعد كشف لمريض."
+              : "No appointments have been booked yet. Start by booking your first patient consultation."}
+          </p>
+          <div className="mt-6">
+            <Link
+              href={`/${locale}/secretary/appointments/new`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0891B2] hover:bg-[#0e7490] text-white text-xs font-bold shadow-md shadow-cyan-900/15 transition-all cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>{isRTL ? "حجز أول موعد الآن" : "Book First Appointment"}</span>
+            </Link>
+          </div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="p-12 text-center bg-white dark:bg-[#131E2E] rounded-3xl border border-slate-200/80 dark:border-slate-800">
+          <p className="text-xs font-bold text-slate-400">
+            {isRTL ? "لا توجد مواعيد مطابقة لفلتر البحث." : "No appointments match this filter."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((apt) => (
             <div
               key={apt.id}
-              className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
-                apt.bookingStatus === "PENDING_REVIEW"
-                  ? "bg-purple-50/40 dark:bg-purple-950/20 border-l-4 rtl:border-l-0 rtl:border-r-4 border-purple-500"
-                  : ""
-              }`}
+              className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#131E2E] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-cyan-500/40"
             >
-              <div className="flex items-start gap-3 sm:gap-4 min-w-0">
-                <div className="w-14 sm:w-16 h-11 sm:h-12 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 text-[#0891B2] dark:text-cyan-400 font-mono text-[11px] sm:text-xs font-extrabold flex flex-col items-center justify-center shrink-0 border border-cyan-100 dark:border-cyan-900">
-                  <span>{apt.time.split(" ")[0]}</span>
-                  <span className="text-[8px] sm:text-[9px] uppercase">{apt.time.split(" ")[1]}</span>
+              <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-50 dark:bg-cyan-950/40 text-[#0891B2] flex flex-col items-center justify-center shrink-0 border border-cyan-100 dark:border-cyan-900">
+                  <Clock size={16} />
+                  <span className="text-[10px] font-mono font-black mt-0.5">{apt.time}</span>
                 </div>
 
-                <div className="min-w-0">
+                <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                      {isRTL ? apt.patientNameAr : apt.patientName}
-                    </h3>
-                    <span className="text-[10px] font-mono text-slate-400 font-bold">({apt.id})</span>
-                    {apt.source === "AI" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                        <Sparkles size={10} />
-                        <span>{isRTL ? "مساعد ذكي" : "AI"}</span>
-                      </span>
-                    )}
-                    {apt.source === "WHATSAPP" && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
-                        WhatsApp
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">{apt.patientName}</h3>
+                    <span className="text-xs font-mono text-slate-400">({apt.patientPhone})</span>
+                    {apt.bookingStatus === "PENDING_REVIEW" && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-50 dark:bg-purple-950/40 text-purple-600 border border-purple-200">
+                        {isRTL ? "بانتظار المراجعة (AI)" : "Pending Review (AI)"}
                       </span>
                     )}
                   </div>
 
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">
-                    {apt.patientPhone} • {isRTL ? apt.typeAr : apt.type} • {isRTL ? apt.doctorNameAr : apt.doctorName}
-                    {apt.fee && <span className="text-slate-700 dark:text-slate-300 font-bold"> • {apt.fee} EGP</span>}
-                  </p>
-                  <p className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 mt-1 line-clamp-1">
-                    {isRTL ? `ملاحظات: ${apt.notesAr}` : `Notes: ${apt.notes}`}
-                  </p>
+                  <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
+                    <span>{apt.doctorName}</span>
+                    <span>•</span>
+                    <span className="font-bold text-[#0891B2]">{apt.type}</span>
+                    <span>•</span>
+                    <span>{apt.date}</span>
+                    {apt.fee !== undefined && (
+                      <>
+                        <span>•</span>
+                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{apt.fee} EGP</span>
+                      </>
+                    )}
+                  </div>
+
+                  {apt.notes && (
+                    <p className="text-[11px] text-slate-400 mt-1 italic line-clamp-1">{apt.notes}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              <div className="flex items-center gap-2 flex-wrap self-end md:self-center">
                 {apt.bookingStatus === "PENDING_REVIEW" ? (
                   <button
                     onClick={() => handleApproveAI(apt.id)}
-                    className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                    className="h-8 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
                   >
-                    <Sparkles size={12} />
+                    <CheckCircle2 size={14} />
                     <span>{isRTL ? "اعتماد الحجز" : "Approve Booking"}</span>
                   </button>
                 ) : (
                   <select
                     value={apt.status}
                     onChange={(e) => handleUpdateStatus(apt.id, e.target.value as Appointment["status"])}
-                    className="h-8 px-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer focus:bg-white dark:focus:bg-slate-900"
+                    className="h-8 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0891B2]"
                   >
-                    <option value="scheduled">{isRTL ? "مجدول" : "Scheduled"}</option>
                     <option value="confirmed">{isRTL ? "مؤكد" : "Confirmed"}</option>
+                    <option value="scheduled">{isRTL ? "مجدول" : "Scheduled"}</option>
                     <option value="completed">{isRTL ? "مكتمل" : "Completed"}</option>
-                    <option value="cancelled">{isRTL ? "ملغى" : "Cancelled"}</option>
+                    <option value="cancelled">{isRTL ? "ملغي" : "Cancelled"}</option>
                   </select>
                 )}
 
-                <Link
-                  href={`/${locale}/secretary/appointments/${apt.id}`}
-                  className="p-2 text-slate-500 dark:text-slate-400 hover:text-[#0891B2] dark:hover:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/40 rounded-lg transition-colors"
-                  title="Edit / Reschedule"
-                >
-                  <Edit3 size={15} />
-                </Link>
+                {apt.patientId && (
+                  <Link
+                    href={`/${locale}/secretary/patients/${apt.patientId}`}
+                    className="h-8 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <User size={13} />
+                    <span>{isRTL ? "ملف المريض" : "Patient File"}</span>
+                  </Link>
+                )}
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

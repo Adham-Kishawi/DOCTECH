@@ -79,7 +79,7 @@ export function ProfitLossStatement({
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
-              {isRTL ? "عيادات النور التخصصية — د. أحمد حسام" : "Al-Noor Medical Practice — Dr. Ahmed Hossam"}
+              {isRTL ? "تقرير الأداء المالي وقائمة الدخل للعيادة" : "Clinical Financial Statement & P&L Report"}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {isRTL ? "قائمة الدخل والأداء المالي الشهري" : "Monthly Profit & Loss (P&L) Financial Statement"}

@@ -19,6 +19,12 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  Check,
+  CalendarCheck,
+  Users,
+  DollarSign,
+  MessageCircle,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,26 +44,64 @@ interface Secretary {
   updated_at: string;
 }
 
+const ALL_PERMISSION_ID = "all";
+const CORE_PERMISSION_IDS = [
+  "appointments",
+  "patients",
+  "billing",
+  "whatsapp",
+  "reports",
+];
+
 const AVAILABLE_PERMISSIONS = [
+  {
+    id: ALL_PERMISSION_ID,
+    label: "All Permissions (كافة الصلاحيات)",
+    nameEn: "All Permissions (Full Access)",
+    nameAr: "كافة الصلاحيات (وصول إداري شامل)",
+    desc: "Grant unrestricted administrative access to all reception, booking, cashier & clinical modules",
+    icon: ShieldCheck,
+    isMaster: true,
+  },
   {
     id: "appointments",
     label: "Appointments & Booking (حجز وإدارة المواعيد)",
+    nameEn: "Appointments & Booking",
+    nameAr: "حجز وإدارة المواعيد",
+    desc: "Manage slots, bookings & timetable",
+    icon: CalendarCheck,
   },
   {
     id: "patients",
     label: "Patient Directory & EMR (ملفات وسجلات المرضى)",
+    nameEn: "Patient Directory & EMR",
+    nameAr: "ملفات وسجلات المرضى",
+    desc: "View patient records, history & visits",
+    icon: Users,
   },
   {
     id: "billing",
     label: "Billing & Cashier (الخزينة والتحصيل المالي)",
+    nameEn: "Billing & Cashier",
+    nameAr: "الخزينة والتحصيل المالي",
+    desc: "Collect payments & track daily expenses",
+    icon: DollarSign,
   },
   {
     id: "whatsapp",
     label: "WhatsApp Chat & Comms (محادثات الواتساب والتواصل)",
+    nameEn: "WhatsApp Chat & Comms",
+    nameAr: "محادثات الواتساب والتواصل",
+    desc: "Direct live patient communication",
+    icon: MessageCircle,
   },
   {
     id: "reports",
     label: "Medical Inquiries & Reports (فرز التقارير الطبية)",
+    nameEn: "Medical Inquiries & Reports",
+    nameAr: "فرز التقارير الطبية",
+    desc: "Triage patient reports & review lab tests",
+    icon: FileText,
   },
 ];
 
@@ -213,14 +257,96 @@ export default function DoctorTeamPage() {
 
   const handleTogglePermission = (permissionId: string) => {
     setFormData((prev) => {
+      if (permissionId === ALL_PERMISSION_ID) {
+        const isAllActive = prev.permissions.includes(ALL_PERMISSION_ID);
+        if (isAllActive) {
+          return { ...prev, permissions: [] };
+        }
+        return {
+          ...prev,
+          permissions: [ALL_PERMISSION_ID, ...CORE_PERMISSION_IDS],
+        };
+      }
+
       const exists = prev.permissions.includes(permissionId);
+      const nextPermissions = exists
+        ? prev.permissions.filter(
+            (p) => p !== permissionId && p !== ALL_PERMISSION_ID
+          )
+        : [...prev.permissions, permissionId];
+
+      const allCoreSelected = CORE_PERMISSION_IDS.every((p) =>
+        nextPermissions.includes(p)
+      );
+      if (allCoreSelected && !nextPermissions.includes(ALL_PERMISSION_ID)) {
+        nextPermissions.push(ALL_PERMISSION_ID);
+      }
 
       return {
         ...prev,
-        permissions: exists
-          ? prev.permissions.filter((permission) => permission !== permissionId)
-          : [...prev.permissions, permissionId],
+        permissions: nextPermissions,
       };
+    });
+  };
+
+  const handleSelectAllPermissions = () => {
+    setFormData((prev) => ({
+      ...prev,
+      permissions: [ALL_PERMISSION_ID, ...CORE_PERMISSION_IDS],
+    }));
+  };
+
+  const handleClearPermissions = () => {
+    setFormData((prev) => ({
+      ...prev,
+      permissions: [],
+    }));
+  };
+
+  const handleToggleEditPermission = (permissionId: string) => {
+    if (!editingMember) return;
+    const current = editingMember.permissions || [];
+
+    if (permissionId === ALL_PERMISSION_ID) {
+      const isAllActive = current.includes(ALL_PERMISSION_ID);
+      setEditingMember({
+        ...editingMember,
+        permissions: isAllActive ? [] : [ALL_PERMISSION_ID, ...CORE_PERMISSION_IDS],
+      });
+      return;
+    }
+
+    const exists = current.includes(permissionId);
+    let nextPermissions = exists
+      ? current.filter((p) => p !== permissionId && p !== ALL_PERMISSION_ID)
+      : [...current, permissionId];
+
+    const allCoreSelected = CORE_PERMISSION_IDS.every((p) =>
+      nextPermissions.includes(p)
+    );
+    if (allCoreSelected && !nextPermissions.includes(ALL_PERMISSION_ID)) {
+      nextPermissions.push(ALL_PERMISSION_ID);
+    }
+
+    setEditingMember({
+      ...editingMember,
+      permissions: nextPermissions,
+    });
+  };
+
+  const handleSelectAllEditPermissions = () => {
+    if (!editingMember) return;
+    setEditingMember({
+      ...editingMember,
+      permissions: [ALL_PERMISSION_ID, ...CORE_PERMISSION_IDS],
+    });
+  };
+
+  const handleClearEditPermissions = () => {
+    if (!editingMember) return;
+    setEditingMember({
+      ...editingMember,
+      permissions: [],
     });
   };
 
@@ -558,14 +684,21 @@ if (!/[^A-Za-z0-9]/.test(formData.password)) {
 
                 <div className="flex flex-wrap gap-1">
                   {member.permissions?.length > 0 ? (
-                    member.permissions.map((permission) => (
-                      <span
-                        key={permission}
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 capitalize"
-                      >
-                        {permission}
+                    member.permissions.includes("all") ? (
+                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/60 text-[#1A4B8C] dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                        <ShieldCheck size={11} />
+                        <span>{locale === "ar" ? "كافة الصلاحيات (Full Access)" : "All Permissions (Full Access)"}</span>
                       </span>
-                    ))
+                    ) : (
+                      member.permissions.map((permission) => (
+                        <span
+                          key={permission}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 capitalize"
+                        >
+                          {permission}
+                        </span>
+                      ))
+                    )
                   ) : (
                     <span className="text-[10px] text-slate-400">
                       No permissions assigned
@@ -733,34 +866,168 @@ if (!/[^A-Za-z0-9]/.test(formData.password)) {
                 </p>
               </div>
 
-              {/* Permissions */}
-              <div className="space-y-2 pt-2">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Granular Permissions & Access Control:
-                </label>
+              {/* Permissions Header with Quick Actions */}
+              <div className="space-y-2.5 pt-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-900 dark:text-white">
+                      {locale === "ar" ? "صلاحيات الوصول والمهام:" : "Granular Permissions & Access Control:"}
+                    </label>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {locale === "ar"
+                        ? "حدد الصلاحيات الممنوعة والممنوحة لهذا الحساب"
+                        : "Enable or disable direct operational scopes"}
+                    </p>
+                  </div>
 
-                <div className="space-y-1.5 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 max-h-40 overflow-y-auto">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllPermissions}
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-[#1A4B8C] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
+                    >
+                      {locale === "ar" ? "تحديد الكل" : "Select All"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearPermissions}
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors cursor-pointer"
+                    >
+                      {locale === "ar" ? "مسح" : "Clear"}
+                    </button>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100/70 dark:bg-blue-900/50 text-[#1A4B8C] dark:text-blue-300">
+                      {formData.permissions.includes(ALL_PERMISSION_ID)
+                        ? (locale === "ar" ? "وصول إداري كامل" : "Full Access")
+                        : `${formData.permissions.filter((p) => p !== ALL_PERMISSION_ID).length}/${CORE_PERMISSION_IDS.length}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {AVAILABLE_PERMISSIONS.map((permission) => {
                     const isChecked = formData.permissions.includes(
                       permission.id
                     );
+                    const isMaster = permission.id === ALL_PERMISSION_ID;
+                    const Icon = permission.icon;
 
                     return (
-                      <label
-                        key={permission.id}
-                        className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() =>
+                      <div key={permission.id} className="space-y-2">
+                        <div
+                          onClick={() =>
                             handleTogglePermission(permission.id)
                           }
-                          className="w-4 h-4 text-[#1A4B8C] rounded cursor-pointer"
-                        />
+                          className={`p-3 rounded-2xl border transition-all duration-200 cursor-pointer select-none flex items-center justify-between gap-3 group ${
+                            isMaster
+                              ? isChecked
+                                ? "bg-gradient-to-r from-blue-600/15 via-indigo-600/10 to-blue-600/5 dark:from-blue-900/40 dark:to-indigo-950/40 border-[#1A4B8C] dark:border-blue-400 shadow-md ring-1 ring-blue-500/20"
+                                : "bg-blue-50/40 dark:bg-blue-950/20 border-blue-200/70 dark:border-blue-900/50 hover:border-blue-300 dark:hover:border-blue-700"
+                              : isChecked
+                              ? "bg-blue-50/70 dark:bg-blue-950/30 border-[#1A4B8C] dark:border-blue-500/70 shadow-xs ring-1 ring-[#1A4B8C]/15"
+                              : "bg-slate-50/40 dark:bg-slate-900/30 border-slate-200/90 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/80 dark:hover:bg-slate-900/50"
+                          }`}
+                        >
+                          {/* Left: Thematic Icon + Text Info */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                                isMaster
+                                  ? isChecked
+                                    ? "bg-gradient-to-tr from-[#1A4B8C] to-blue-500 text-white shadow-md shadow-blue-600/30"
+                                    : "bg-blue-100 dark:bg-blue-900/60 text-[#1A4B8C] dark:text-blue-300"
+                                  : isChecked
+                                  ? "bg-[#1A4B8C] text-white shadow-sm shadow-blue-500/25"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"
+                              }`}
+                            >
+                              <Icon size={isMaster ? 18 : 17} />
+                            </div>
 
-                        <span>{permission.label}</span>
-                      </label>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                                  {permission.nameEn}
+                                </span>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded ${
+                                  isMaster
+                                    ? "bg-blue-100 dark:bg-blue-900/60 text-[#1A4B8C] dark:text-blue-300 font-bold"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                }`}>
+                                  {permission.nameAr}
+                                </span>
+                                {isMaster && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                    MASTER
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                {permission.desc}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Right: Modern iOS/SaaS Toggle Switch */}
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <span
+                              className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
+                                isChecked
+                                  ? isMaster
+                                    ? "bg-blue-100 dark:bg-blue-950/60 text-[#1A4B8C] dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/60"
+                                    : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-400 border border-transparent"
+                              }`}
+                            >
+                              {isChecked && (
+                                <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                  isMaster ? "bg-[#1A4B8C] dark:bg-blue-400" : "bg-emerald-500"
+                                }`} />
+                              )}
+                              {isChecked
+                                ? isMaster
+                                  ? locale === "ar" ? "شامل" : "Full Access"
+                                  : locale === "ar" ? "مفعل" : "Granted"
+                                : locale === "ar" ? "معطل" : "Disabled"}
+                            </span>
+
+                            <div
+                              className={`w-11 h-6 rounded-full transition-colors duration-200 ease-in-out relative flex items-center p-0.5 shrink-0 ${
+                                isChecked
+                                  ? "bg-[#1A4B8C] dark:bg-blue-600 shadow-sm shadow-blue-600/30"
+                                  : "bg-slate-300 dark:bg-slate-700"
+                              }`}
+                            >
+                              <div
+                                className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center ${
+                                  isChecked
+                                    ? locale === "ar"
+                                      ? "-translate-x-5"
+                                      : "translate-x-5"
+                                    : "translate-x-0"
+                                }`}
+                              >
+                                {isChecked && (
+                                  <Check
+                                    size={11}
+                                    className="text-[#1A4B8C] dark:text-blue-600 stroke-[3]"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Divider after Master Card */}
+                        {isMaster && (
+                          <div className="flex items-center gap-2 py-1">
+                            <div className="h-px bg-slate-200/80 dark:bg-slate-800 flex-1"></div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              {locale === "ar" ? "أو حدد صلاحيات مخصصة" : "Or Custom Granular Scopes"}
+                            </span>
+                            <div className="h-px bg-slate-200/80 dark:bg-slate-800 flex-1"></div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -890,48 +1157,167 @@ if (!/[^A-Za-z0-9]/.test(formData.password)) {
                 </div>
               </div>
 
-              {/* Permissions */}
-              <div className="space-y-2 pt-2">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Assigned Permissions:
-                </label>
+              {/* Permissions Header with Quick Actions */}
+              <div className="space-y-2.5 pt-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-900 dark:text-white">
+                      {locale === "ar" ? "صلاحيات الوصول المعينة:" : "Assigned Permissions & Access:"}
+                    </label>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {locale === "ar"
+                        ? "تعديل الصلاحيات المتاحة لهذا الموظف"
+                        : "Modify assigned operational permissions"}
+                    </p>
+                  </div>
 
-                <div className="space-y-1.5 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 max-h-40 overflow-y-auto">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllEditPermissions}
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-[#1A4B8C] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
+                    >
+                      {locale === "ar" ? "تحديد الكل" : "Select All"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearEditPermissions}
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors cursor-pointer"
+                    >
+                      {locale === "ar" ? "مسح" : "Clear"}
+                    </button>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100/70 dark:bg-blue-900/50 text-[#1A4B8C] dark:text-blue-300">
+                      {(editingMember.permissions || []).includes(ALL_PERMISSION_ID)
+                        ? (locale === "ar" ? "وصول إداري كامل" : "Full Access")
+                        : `${(editingMember.permissions || []).filter((p) => p !== ALL_PERMISSION_ID).length}/${CORE_PERMISSION_IDS.length}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {AVAILABLE_PERMISSIONS.map((permission) => {
                     const isChecked =
                       editingMember.permissions?.includes(permission.id);
+                    const isMaster = permission.id === ALL_PERMISSION_ID;
+                    const Icon = permission.icon;
 
                     return (
-                      <label
-                        key={permission.id}
-                        className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            const exists =
-                              editingMember.permissions.includes(
-                                permission.id
-                              );
+                      <div key={permission.id} className="space-y-2">
+                        <div
+                          onClick={() =>
+                            handleToggleEditPermission(permission.id)
+                          }
+                          className={`p-3 rounded-2xl border transition-all duration-200 cursor-pointer select-none flex items-center justify-between gap-3 group ${
+                            isMaster
+                              ? isChecked
+                                ? "bg-gradient-to-r from-blue-600/15 via-indigo-600/10 to-blue-600/5 dark:from-blue-900/40 dark:to-indigo-950/40 border-[#1A4B8C] dark:border-blue-400 shadow-md ring-1 ring-blue-500/20"
+                                : "bg-blue-50/40 dark:bg-blue-950/20 border-blue-200/70 dark:border-blue-900/50 hover:border-blue-300 dark:hover:border-blue-700"
+                              : isChecked
+                              ? "bg-blue-50/70 dark:bg-blue-950/30 border-[#1A4B8C] dark:border-blue-500/70 shadow-xs ring-1 ring-[#1A4B8C]/15"
+                              : "bg-slate-50/40 dark:bg-slate-900/30 border-slate-200/90 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/80 dark:hover:bg-slate-900/50"
+                          }`}
+                        >
+                          {/* Left: Thematic Icon + Text Info */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                                isMaster
+                                  ? isChecked
+                                    ? "bg-gradient-to-tr from-[#1A4B8C] to-blue-500 text-white shadow-md shadow-blue-600/30"
+                                    : "bg-blue-100 dark:bg-blue-900/60 text-[#1A4B8C] dark:text-blue-300"
+                                  : isChecked
+                                  ? "bg-[#1A4B8C] text-white shadow-sm shadow-blue-500/25"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"
+                              }`}
+                            >
+                              <Icon size={isMaster ? 18 : 17} />
+                            </div>
 
-                            setEditingMember({
-                              ...editingMember,
-                              permissions: exists
-                                ? editingMember.permissions.filter(
-                                    (item) => item !== permission.id
-                                  )
-                                : [
-                                    ...editingMember.permissions,
-                                    permission.id,
-                                  ],
-                            });
-                          }}
-                          className="w-4 h-4 text-[#1A4B8C] rounded cursor-pointer"
-                        />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                                  {permission.nameEn}
+                                </span>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded ${
+                                  isMaster
+                                    ? "bg-blue-100 dark:bg-blue-900/60 text-[#1A4B8C] dark:text-blue-300 font-bold"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                }`}>
+                                  {permission.nameAr}
+                                </span>
+                                {isMaster && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                    MASTER
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                {permission.desc}
+                              </p>
+                            </div>
+                          </div>
 
-                        <span>{permission.label}</span>
-                      </label>
+                          {/* Right: Modern iOS/SaaS Toggle Switch */}
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <span
+                              className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
+                                isChecked
+                                  ? isMaster
+                                    ? "bg-blue-100 dark:bg-blue-950/60 text-[#1A4B8C] dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/60"
+                                    : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-400 border border-transparent"
+                              }`}
+                            >
+                              {isChecked && (
+                                <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                  isMaster ? "bg-[#1A4B8C] dark:bg-blue-400" : "bg-emerald-500"
+                                }`} />
+                              )}
+                              {isChecked
+                                ? isMaster
+                                  ? locale === "ar" ? "شامل" : "Full Access"
+                                  : locale === "ar" ? "مفعل" : "Granted"
+                                : locale === "ar" ? "معطل" : "Disabled"}
+                            </span>
+
+                            <div
+                              className={`w-11 h-6 rounded-full transition-colors duration-200 ease-in-out relative flex items-center p-0.5 shrink-0 ${
+                                isChecked
+                                  ? "bg-[#1A4B8C] dark:bg-blue-600 shadow-sm shadow-blue-600/30"
+                                  : "bg-slate-300 dark:bg-slate-700"
+                              }`}
+                            >
+                              <div
+                                className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center ${
+                                  isChecked
+                                    ? locale === "ar"
+                                      ? "-translate-x-5"
+                                      : "translate-x-5"
+                                    : "translate-x-0"
+                                }`}
+                              >
+                                {isChecked && (
+                                  <Check
+                                    size={11}
+                                    className="text-[#1A4B8C] dark:text-blue-600 stroke-[3]"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Divider after Master Card */}
+                        {isMaster && (
+                          <div className="flex items-center gap-2 py-1">
+                            <div className="h-px bg-slate-200/80 dark:bg-slate-800 flex-1"></div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              {locale === "ar" ? "أو حدد صلاحيات مخصصة" : "Or Custom Granular Scopes"}
+                            </span>
+                            <div className="h-px bg-slate-200/80 dark:bg-slate-800 flex-1"></div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>

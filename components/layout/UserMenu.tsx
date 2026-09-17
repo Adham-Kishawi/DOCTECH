@@ -15,6 +15,7 @@ interface UserMenuProps {
   role: "Doctor" | "Secretary";
   email: string;
   color?: string;
+  avatarUrl?: string | null;
 }
 
 export function UserMenu({
@@ -22,6 +23,7 @@ export function UserMenu({
   role,
   email,
   color = "#3368A0",
+  avatarUrl,
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
 
@@ -70,12 +72,20 @@ export function UserMenu({
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
       >
-        <div
-          className="w-8 h-8 rounded-full text-white flex items-center justify-center text-xs font-black shadow-xs"
-          style={{ background: color }}
-        >
-          {initials}
-        </div>
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={name}
+            className="w-8 h-8 rounded-full object-cover shadow-xs border border-slate-200 dark:border-slate-700"
+          />
+        ) : (
+          <div
+            className="w-8 h-8 rounded-full text-white flex items-center justify-center text-xs font-black shadow-xs"
+            style={{ background: color }}
+          >
+            {initials}
+          </div>
+        )}
 
         <div className="hidden sm:block text-left rtl:text-right text-xs">
           <p className="font-bold text-slate-900 dark:text-white leading-tight">

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 
 export interface AvailableSlot {
   time: string;
@@ -7,14 +7,6 @@ export interface AvailableSlot {
   isAvailable: boolean;
   doctorId: string;
   date: string;
-}
-
-interface DoctorSchedule {
-  day_of_week: number;
-  start_time: string;
-  end_time: string;
-  slot_duration: number;
-  is_active: boolean;
 }
 
 interface AppointmentRecord {
@@ -75,13 +67,19 @@ export async function getAvailableSlots(
     throw new Error(scheduleError.message);
   }
 
-  if (!schedule || !schedule.is_active) {
-    return [];
-  }
+  // If doctor does not have an explicit schedule set for this day, fallback to standard hours (09:00 - 17:00)
+  const defaultSchedule = {
+    start_time: "09:00",
+    end_time: "17:00",
+    slot_duration: 30,
+    is_active: true,
+  };
 
-  const startMinutes = timeToMinutes(schedule.start_time);
-  const endMinutes = timeToMinutes(schedule.end_time);
-  const slotDuration = schedule.slot_duration;
+  const activeSchedule = (schedule && schedule.is_active) ? schedule : defaultSchedule;
+
+  const startMinutes = timeToMinutes(activeSchedule.start_time);
+  const endMinutes = timeToMinutes(activeSchedule.end_time);
+  const slotDuration = activeSchedule.slot_duration || 30;
 
   const { data: appointments, error: appointmentsError } = await supabase
     .from("appointments")

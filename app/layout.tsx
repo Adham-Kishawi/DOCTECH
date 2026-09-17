@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 // import type { Metadata } from "next";
 
 // export const metadata: Metadata = {
@@ -52,7 +53,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen antialiased bg-[#0B131E] text-[#F8FAFC]">
-        {children}
+        <ClerkProvider>
+          {children}
+        </ClerkProvider>
       </body>
     </html>
   );

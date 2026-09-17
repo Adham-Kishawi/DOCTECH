@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 
 const AVAILABLE_PERMISSIONS = [
+  "all",
   "appointments",
   "patients",
   "billing",

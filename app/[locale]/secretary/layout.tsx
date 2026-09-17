@@ -265,9 +265,7 @@ export default function SecretaryLayout({
                 </button>
 
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate hidden sm:block">
-                  {isRTL
-                    ? `${secretary?.name || "..."} — مكتب الاستقبال`
-                    : `${secretary?.name || "..."} — Reception Desk`}
+                  {isRTL ? "مكتب الاستقبال" : "Reception Desk"}
                 </span>
 
                 {/* Send Discreet Note Button */}
@@ -302,6 +300,7 @@ export default function SecretaryLayout({
                   role="Secretary"
                   email={secretary?.email || ""}
                   color="#36ADA3"
+                  avatarUrl={secretary?.avatar_url}
                 />
               </div>
             </header>

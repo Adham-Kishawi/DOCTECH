@@ -1,132 +1,63 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Users,
   Search,
-  ArrowRight,
   UserPlus,
   MessageCircle,
   Phone,
-  Calendar,
   Activity,
-  FileText,
   ChevronRight,
   Filter,
+  Loader2,
+  Calendar,
 } from "lucide-react";
 
 interface Patient {
   id: string;
   name: string;
-  nameAr: string;
   phone: string;
-  gender: "Male" | "Female";
-  genderAr: "ذكر" | "أنثى";
+  email?: string;
+  gender: "Male" | "Female" | "Unknown";
+  genderAr: string;
   age: number;
   lastVisit: string;
   lastVisitAr: string;
   totalVisits: number;
-  condition: string;
-  conditionAr: string;
+  notes?: string;
+  address?: string;
 }
-
-const initialPatientsData: Patient[] = [
-  {
-    id: "PAT-001",
-    name: "Ahmed Hassan",
-    nameAr: "أحمد حسن",
-    phone: "+20 100 123 4567",
-    gender: "Male",
-    genderAr: "ذكر",
-    age: 42,
-    lastVisit: "Today",
-    lastVisitAr: "اليوم",
-    totalVisits: 5,
-    condition: "Hypertension (Stage 1)",
-    conditionAr: "ارتفاع ضغط الدم (مرحلة أولى)",
-  },
-  {
-    id: "PAT-002",
-    name: "Sara Ibrahim",
-    nameAr: "سارة إبراهيم",
-    phone: "+20 102 345 6789",
-    gender: "Female",
-    genderAr: "أنثى",
-    age: 29,
-    lastVisit: "10 days ago",
-    lastVisitAr: "منذ ١٠ أيام",
-    totalVisits: 2,
-    condition: "Routine Consultation",
-    conditionAr: "استشارة ومتابعة",
-  },
-  {
-    id: "PAT-003",
-    name: "Mohamed Ali",
-    nameAr: "محمد علي",
-    phone: "+20 103 456 7890",
-    gender: "Male",
-    genderAr: "ذكر",
-    age: 55,
-    lastVisit: "2 weeks ago",
-    lastVisitAr: "منذ أسبوعين",
-    totalVisits: 8,
-    condition: "Post-Cardiac Stent Follow-up",
-    conditionAr: "متابعة ما بعد دعامة القلب",
-  },
-  {
-    id: "PAT-004",
-    name: "Fatima Omar",
-    nameAr: "فاطمة عمر",
-    phone: "+20 104 567 8901",
-    gender: "Female",
-    genderAr: "أنثى",
-    age: 34,
-    lastVisit: "1 month ago",
-    lastVisitAr: "منذ شهر",
-    totalVisits: 3,
-    condition: "Prescription Refill",
-    conditionAr: "تجديد علاج شهري",
-  },
-  {
-    id: "PAT-005",
-    name: "Kareem Tarek",
-    nameAr: "كريم طارق",
-    phone: "+20 105 678 9012",
-    gender: "Male",
-    genderAr: "ذكر",
-    age: 46,
-    lastVisit: "3 days ago",
-    lastVisitAr: "منذ ٣ أيام",
-    totalVisits: 4,
-    condition: "Hyperpyrexia post-antibiotics",
-    conditionAr: "حرارة مستمرة بعد العلاج",
-  },
-  {
-    id: "PAT-006",
-    name: "Nouran Mahmoud",
-    nameAr: "نوران محمود",
-    phone: "+20 102 345 6789",
-    gender: "Female",
-    genderAr: "أنثى",
-    age: 32,
-    lastVisit: "Yesterday",
-    lastVisitAr: "أمس",
-    totalVisits: 6,
-    condition: "Diabetes Type 2 Follow-up",
-    conditionAr: "متابعة سكري النوع الثاني",
-  },
-];
 
 export default function SecretaryPatientsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [patients, setPatients] = useState<Patient[]>(initialPatientsData);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState<string>("all");
+
+  useEffect(() => {
+    async function loadPatients() {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/patients");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setPatients(json.data);
+        }
+      } catch (err) {
+        console.error("Failed to load patients:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadPatients();
+  }, []);
 
   const filtered = useMemo(() => {
     return patients.filter((p) => {
@@ -135,14 +66,12 @@ export default function SecretaryPatientsPage() {
       }
       if (search.trim()) {
         const q = search.toLowerCase();
-        const matchName =
-          p.name.toLowerCase().includes(q) || p.nameAr.includes(q);
+        const matchName = p.name.toLowerCase().includes(q);
         const matchPhone = p.phone.includes(q);
         const matchId = p.id.toLowerCase().includes(q);
-        const matchCondition =
-          p.condition.toLowerCase().includes(q) || p.conditionAr.includes(q);
+        const matchNotes = p.notes ? p.notes.toLowerCase().includes(q) : false;
 
-        if (!matchName && !matchPhone && !matchId && !matchCondition) {
+        if (!matchName && !matchPhone && !matchId && !matchNotes) {
           return false;
         }
       }
@@ -154,7 +83,7 @@ export default function SecretaryPatientsPage() {
     const total = patients.length;
     const male = patients.filter((p) => p.gender === "Male").length;
     const female = patients.filter((p) => p.gender === "Female").length;
-    const activeThisMonth = patients.filter((p) => !p.lastVisit.includes("month")).length;
+    const activeThisMonth = patients.filter((p) => p.totalVisits > 0).length;
 
     return { total, male, female, activeThisMonth };
   }, [patients]);
@@ -163,10 +92,11 @@ export default function SecretaryPatientsPage() {
     e.preventDefault();
     e.stopPropagation();
     const cleanPhone = phone.replace(/[^0-9]/g, "");
+    const intlPhone = cleanPhone.startsWith("0") ? `20${cleanPhone.slice(1)}` : cleanPhone;
     const msg = isRTL
       ? `مرحباً أستاذ/ة ${name}، نتواصل معك من مكتب استقبال عيادة DOCTECH للاطمئنان على صحتك.`
       : `Hello ${name}, this is DocTech Clinic reception following up on your health.`;
-    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+    window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
   return (
@@ -183,8 +113,8 @@ export default function SecretaryPatientsPage() {
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1 max-w-2xl">
             {isRTL
-              ? "البحث في ملفات المرضى، متابعة التاريخ السريري، فحص المرفقات والروشتات، والتواصل الفوري عبر الواتساب"
-              : "Search patient profiles, review historical visits, clinical attachments, and initiate WhatsApp conversations"}
+              ? "البحث في ملفات المرضى الحقيقية المسجلة، متابعة الكشوفات، والتواصل المباشر عبر الواتساب"
+              : "Search live patient profiles, review historical visits, clinical notes, and chat on WhatsApp"}
           </p>
         </div>
 
@@ -194,7 +124,7 @@ export default function SecretaryPatientsPage() {
             className="h-10 px-4 rounded-xl bg-[#0891B2] hover:bg-[#0e7490] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-900/15 cursor-pointer active:scale-95"
           >
             <UserPlus size={15} />
-            <span>{isRTL ? "تسجيل مريض جديد" : "New Patient Visit"}</span>
+            <span>{isRTL ? "حجز كشف لمريض" : "New Patient Booking"}</span>
           </Link>
         </div>
       </div>
@@ -210,7 +140,7 @@ export default function SecretaryPatientsPage() {
               {isRTL ? "إجمالي المسجلين" : "Registered Patients"}
             </span>
             <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {stats.total}
+              {loading ? "-" : stats.total}
             </p>
           </div>
         </div>
@@ -221,10 +151,10 @@ export default function SecretaryPatientsPage() {
           </div>
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              {isRTL ? "نشطين هذا الشهر" : "Active This Month"}
+              {isRTL ? "مرضى لديهم زيارات" : "Patients with Visits"}
             </span>
             <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {stats.activeThisMonth}
+              {loading ? "-" : stats.activeThisMonth}
             </p>
           </div>
         </div>
@@ -238,7 +168,7 @@ export default function SecretaryPatientsPage() {
               {isRTL ? "مرضى ذكور" : "Male Patients"}
             </span>
             <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {stats.male}
+              {loading ? "-" : stats.male}
             </p>
           </div>
         </div>
@@ -249,129 +179,170 @@ export default function SecretaryPatientsPage() {
           </div>
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              {isRTL ? "مريضات إناث" : "Female Patients"}
+              {isRTL ? "مرضى إناث" : "Female Patients"}
             </span>
             <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {stats.female}
+              {loading ? "-" : stats.female}
             </p>
           </div>
         </div>
       </div>
 
       {/* ━━━ 3. FILTER & SEARCH TOOLBAR ━━━ */}
-      <div className="bg-white dark:bg-[#131E2E] p-4 sm:p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5">
-        <div className="relative flex-1 max-w-md">
-          <Search className="doctech-input-icon" size={16} />
+      <div className="bg-white dark:bg-[#131E2E] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="relative w-full sm:w-80">
+          <Search className="doctech-input-icon" size={17} />
           <input
             type="text"
-            placeholder={
-              isRTL
-                ? "بحث بالاسم، رقم الهاتف، أو كود المريض (PAT-001)..."
-                : "Search patient name, phone, or ID (PAT-001)..."
-            }
+            placeholder={isRTL ? "بحث بالاسم، الهاتف، أو الملاحظات..." : "Search by name, phone, notes..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="doctech-input !h-10 text-xs"
+            className="doctech-input"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 self-start sm:self-auto">
-          {[
-            { id: "all", en: "All Patients", ar: "جميع المرضى" },
-            { id: "Male", en: "Male", ar: "ذكور" },
-            { id: "Female", en: "Female", ar: "إناث" },
-          ].map((st) => (
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold">
+            <Filter size={13} className="text-slate-400 ms-2" />
             <button
-              key={st.id}
-              onClick={() => setGenderFilter(st.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                genderFilter === st.id
-                  ? "bg-[#0891B2] text-white shadow-xs"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+              onClick={() => setGenderFilter("all")}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                genderFilter === "all"
+                  ? "bg-white dark:bg-[#131E2E] text-[#0891B2] shadow-xs"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              {isRTL ? st.ar : st.en}
+              {isRTL ? "الكل" : "All"}
             </button>
-          ))}
+            <button
+              onClick={() => setGenderFilter("Male")}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                genderFilter === "Male"
+                  ? "bg-white dark:bg-[#131E2E] text-[#0891B2] shadow-xs"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              {isRTL ? "ذكور" : "Male"}
+            </button>
+            <button
+              onClick={() => setGenderFilter("Female")}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                genderFilter === "Female"
+                  ? "bg-white dark:bg-[#131E2E] text-[#0891B2] shadow-xs"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              {isRTL ? "إناث" : "Female"}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ━━━ 4. PATIENT DIRECTORY LIST ━━━ */}
-      <div className="bg-white dark:bg-[#131E2E] rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
-        {filtered.length === 0 ? (
-          <div className="p-12 text-center text-xs text-slate-400 dark:text-slate-500 font-medium">
-            {isRTL
-              ? "لا يوجد مرضى يطابقون معايير البحث الحالية."
-              : "No patients found matching your search term."}
+      {/* ━━━ 4. PATIENT DIRECTORY CONTENT ━━━ */}
+      {loading ? (
+        <div className="p-16 text-center bg-white dark:bg-[#131E2E] rounded-3xl border border-slate-200/80 dark:border-slate-800">
+          <Loader2 size={32} className="animate-spin text-[#0891B2] mx-auto mb-3" />
+          <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+            {isRTL ? "جاري تحميل سجلات المرضى من قاعدة البيانات..." : "Loading patient directory from database..."}
+          </p>
+        </div>
+      ) : patients.length === 0 ? (
+        /* Empty State */
+        <div className="p-12 sm:p-16 text-center bg-white dark:bg-[#131E2E] rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="w-16 h-16 rounded-3xl bg-cyan-50 dark:bg-cyan-950/50 text-[#0891B2] flex items-center justify-center mx-auto mb-4">
+            <Users size={32} />
           </div>
-        ) : (
-          filtered.map((patient) => (
+          <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+            {isRTL ? "لا يوجد مرضى مسجلون حالياً" : "No Registered Patients Yet"}
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-2 font-medium">
+            {isRTL
+              ? "سجل المرضى في قاعدة البيانات خالٍ حالياً. يمكنك حجز كشف لمريض جديد ليتم حفظ بياناته هنا تلقائياً."
+              : "The patient registry in your database is currently empty. Book an appointment to register your first patient."}
+          </p>
+          <div className="mt-6">
+            <Link
+              href={`/${locale}/secretary/appointments/new`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0891B2] hover:bg-[#0e7490] text-white text-xs font-bold shadow-md shadow-cyan-900/15 transition-all cursor-pointer"
+            >
+              <UserPlus size={16} />
+              <span>{isRTL ? "تسجيل مريض وحجز كشف الآن" : "Register Patient & Book Visit"}</span>
+            </Link>
+          </div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="p-12 text-center bg-white dark:bg-[#131E2E] rounded-3xl border border-slate-200/80 dark:border-slate-800">
+          <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+            {isRTL ? "لا توجد نتائج مطابقة لبحثك." : "No patients match your search criteria."}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((patient) => (
             <Link
               key={patient.id}
               href={`/${locale}/secretary/patients/${patient.id}`}
-              className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer"
+              className="p-5 rounded-3xl bg-white dark:bg-[#131E2E] border border-slate-200/80 dark:border-slate-800 hover:border-cyan-500/50 dark:hover:border-cyan-500/40 transition-all shadow-xs hover:shadow-md group flex flex-col justify-between"
             >
-              <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
-                {/* Avatar */}
-                <div className="w-12 h-12 rounded-2xl bg-cyan-50 dark:bg-cyan-950/50 text-[#0891B2] dark:text-cyan-400 font-extrabold text-sm flex items-center justify-center shrink-0 border border-cyan-100 dark:border-cyan-900 shadow-2xs">
-                  {patient.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#0891B2] dark:group-hover:text-cyan-400 transition-colors">
-                      {isRTL ? patient.nameAr : patient.name}
-                    </h3>
-                    <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">
-                      ({patient.id})
-                    </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                      {isRTL ? patient.genderAr : patient.gender} • {patient.age} {isRTL ? "سنة" : "yrs"}
-                    </span>
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-black text-sm flex items-center justify-center shrink-0 group-hover:bg-cyan-50 dark:group-hover:bg-cyan-950/50 group-hover:text-[#0891B2] transition-colors">
+                      {patient.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#0891B2] transition-colors">
+                        {patient.name}
+                      </h3>
+                      <span className="text-[11px] font-bold text-slate-400 block mt-0.5">
+                        {isRTL ? patient.genderAr : patient.gender}
+                      </span>
+                    </div>
                   </div>
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 flex flex-wrap items-center gap-2.5">
-                    <span className="flex items-center gap-1">
-                      <Phone size={11} className="text-slate-400" />
-                      <span dir="ltr">{patient.phone}</span>
-                    </span>
-                    <span>•</span>
-                    <span>
-                      {isRTL ? `آخر كشف: ${patient.lastVisitAr}` : `Last Visit: ${patient.lastVisit}`}
-                    </span>
-                    <span>•</span>
-                    <span className="text-[#0891B2] font-bold">
-                      {patient.totalVisits} {isRTL ? "زيارات وكشوفات" : "Visits"}
-                    </span>
-                  </p>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    {patient.totalVisits} {isRTL ? "زيارات" : "visits"}
+                  </span>
+                </div>
 
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
-                    {isRTL ? `التشخيص/الحالة: ${patient.conditionAr}` : `Condition: ${patient.condition}`}
-                  </p>
+                <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex items-center gap-2">
+                    <Phone size={13} className="text-slate-400 shrink-0" />
+                    <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">{patient.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar size={13} className="text-slate-400 shrink-0" />
+                    <span className="text-[11px]">
+                      {isRTL ? `آخر موعد: ${patient.lastVisitAr}` : `Last visit: ${patient.lastVisit}`}
+                    </span>
+                  </div>
+                  {patient.notes && (
+                    <p className="text-[11px] text-slate-400 line-clamp-1 italic mt-1">
+                      {patient.notes}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Right Side Actions */}
-              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={(e) => handleWhatsApp(e, patient.phone, isRTL ? patient.nameAr : patient.name)}
-                  className="h-8 px-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold flex items-center gap-1 border border-emerald-200 dark:border-emerald-800 cursor-pointer transition-colors"
-                  title={isRTL ? "محادثة واتساب" : "WhatsApp"}
+                  onClick={(e) => handleWhatsApp(e, patient.phone, patient.name)}
+                  className="h-8 px-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <MessageCircle size={13} />
-                  <span className="hidden sm:inline">{isRTL ? "واتساب" : "WhatsApp"}</span>
+                  <span>{isRTL ? "واتساب" : "WhatsApp"}</span>
                 </button>
 
-                <span className="text-xs font-bold text-[#0891B2] dark:text-cyan-400 group-hover:underline flex items-center gap-1 pl-1">
-                  <span>{isRTL ? "فتح الملف الطبي" : "Open EMR"}</span>
-                  <ChevronRight size={15} className={isRTL ? "rotate-180" : ""} />
-                </span>
+                <div className="flex items-center gap-1 text-xs font-bold text-slate-400 group-hover:text-[#0891B2] transition-colors">
+                  <span>{isRTL ? "فتح الملف" : "View File"}</span>
+                  <ChevronRight size={14} className={isRTL ? "rotate-180" : ""} />
+                </div>
               </div>
             </Link>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

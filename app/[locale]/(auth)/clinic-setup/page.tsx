@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Building2,
@@ -33,6 +33,7 @@ export default function ClinicSetupPage() {
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [checkingExisting, setCheckingExisting] = useState(true);
 
   const [formData, setFormData] = useState({
     doctorName: "",
@@ -45,6 +46,30 @@ export default function ClinicSetupPage() {
     workEndTime: "17:00",
     workingDays: [] as number[],
   });
+
+  // If doctor or secretary is already registered, redirect straight to their dashboard
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.role === "doctor") {
+            window.location.href = `/${locale}/doctor/dashboard`;
+            return;
+          } else if (data.success && data.role === "secretary") {
+            window.location.href = `/${locale}/secretary/dashboard`;
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Setup check error:", err);
+      } finally {
+        setCheckingExisting(false);
+      }
+    }
+    checkStatus();
+  }, [locale]);
 
   const updateField = (
     field: keyof typeof formData,
@@ -129,7 +154,7 @@ export default function ClinicSetupPage() {
           : "Clinic setup complete! Welcome to DOCTECH."
       );
 
-      router.push(`/${locale}/doctor/dashboard`);
+      window.location.href = `/${locale}/doctor/dashboard`;
     } catch (error) {
       console.error("Clinic setup error:", error);
 

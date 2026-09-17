@@ -89,6 +89,7 @@ type DoctorProfile = {
   name: string;
   email: string;
   specialty: string | null;
+  avatar_url?: string | null;
 };
 
 type Clinic = {
@@ -280,9 +281,6 @@ export default function DoctorLayout({
                   />
                 </button>
 
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate hidden sm:block">
-                  {headerTitle}
-                </span>
 
                 {/* URGENT SUMMON BUTTON */}
                 <button
@@ -314,6 +312,7 @@ export default function DoctorLayout({
                   role="Doctor"
                   email={doctorEmail}
                   color="#3368A0"
+                  avatarUrl={doctor?.avatar_url}
                 />
               </div>
             </header>

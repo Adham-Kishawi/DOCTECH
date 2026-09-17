@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Calendar, Clock, ArrowLeft, Save, Plus, Trash2, CheckCircle2 } from "lucide-react";
+import { Calendar, Clock, ArrowLeft, Save, Plus, Trash2, CheckCircle2, Check } from "lucide-react";
 import { toast } from "sonner";
 
 interface DaySchedule {
@@ -105,13 +105,32 @@ export default function DoctorScheduleSettingsPage() {
             }`}
           >
             {/* Day name & toggle */}
-            <div className="flex items-center gap-3 min-w-[150px]">
-              <input
-                type="checkbox"
-                checked={sched.isActive}
-                onChange={() => handleToggleDay(idx)}
-                className="w-4 h-4 text-[#1A4B8C] rounded cursor-pointer"
-              />
+            <div className="flex items-center gap-3 min-w-[170px]">
+              <div
+                onClick={() => handleToggleDay(idx)}
+                className={`w-11 h-6 rounded-full transition-colors duration-200 ease-in-out relative flex items-center p-0.5 shrink-0 cursor-pointer ${
+                  sched.isActive
+                    ? "bg-[#1A4B8C] dark:bg-blue-600 shadow-sm shadow-blue-600/30"
+                    : "bg-slate-300 dark:bg-slate-700"
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center ${
+                    sched.isActive
+                      ? isRTL
+                        ? "-translate-x-5"
+                        : "translate-x-5"
+                      : "translate-x-0"
+                  }`}
+                >
+                  {sched.isActive && (
+                    <Check
+                      size={11}
+                      className="text-[#1A4B8C] dark:text-blue-600 stroke-[3]"
+                    />
+                  )}
+                </div>
+              </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                   {isRTL ? sched.nameAr : sched.nameEn}
