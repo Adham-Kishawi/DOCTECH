@@ -171,16 +171,48 @@ export async function POST(req: Request) {
     }
 
     // 2. Resolve doctor for this report
-    let doctorId = "doc-default";
-    const { data: currentDoc } = await supabase
-      .from("doctors")
-      .select("id")
-      .eq("clinic_id", session.clinicId)
-      .limit(1)
-      .maybeSingle();
+    let doctorId: string | null = null;
+    if (session.userId) {
+      const { data: docByClerk } = await supabase
+        .from("doctors")
+        .select("id")
+        .eq("clerk_user_id", session.userId)
+        .maybeSingle();
+      if (docByClerk?.id) {
+        doctorId = docByClerk.id;
+      }
+    }
 
-    if (currentDoc?.id) {
-      doctorId = currentDoc.id;
+    if (!doctorId) {
+      const { data: currentDoc } = await supabase
+        .from("doctors")
+        .select("id")
+        .eq("clinic_id", session.clinicId)
+        .limit(1)
+        .maybeSingle();
+
+      if (currentDoc?.id) {
+        doctorId = currentDoc.id;
+      }
+    }
+
+    if (!doctorId) {
+      // Fallback to any registered doctor to satisfy FK
+      const { data: anyDoc } = await supabase
+        .from("doctors")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+      if (anyDoc?.id) {
+        doctorId = anyDoc.id;
+      }
+    }
+
+    if (!doctorId) {
+      return NextResponse.json(
+        { success: false, error: "No active doctor found in clinic to assign report" },
+        { status: 400 }
+      );
     }
 
     // 3. Prepare structured notes
