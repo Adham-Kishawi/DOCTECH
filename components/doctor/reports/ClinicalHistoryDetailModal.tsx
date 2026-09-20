@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X,
   Printer,
@@ -17,15 +17,29 @@ import {
   FileText,
   ShieldAlert,
   Share2,
+  Paperclip,
+  ExternalLink,
+  Plus,
+  Image as ImageIcon,
 } from "lucide-react";
 import { ClinicalHistoryItem } from "@/lib/doctor/historyData";
 import { toast } from "sonner";
+
+interface AttachmentData {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  uploadedAt: string;
+  description?: string;
+}
 
 interface ClinicalHistoryDetailModalProps {
   item: ClinicalHistoryItem | null;
   isOpen: boolean;
   onClose: () => void;
   isRTL: boolean;
+  onAddNewRecord?: (patientId: string) => void;
 }
 
 export function ClinicalHistoryDetailModal({
@@ -33,8 +47,33 @@ export function ClinicalHistoryDetailModal({
   isOpen,
   onClose,
   isRTL,
+  onAddNewRecord,
 }: ClinicalHistoryDetailModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [patientAttachments, setPatientAttachments] = useState<AttachmentData[]>([]);
+  const [loadingAttachments, setLoadingAttachments] = useState(false);
+
+  // Fetch patient attachments whenever item changes
+  useEffect(() => {
+    async function loadAttachments() {
+      if (!item?.patientId || !isOpen) return;
+      try {
+        setLoadingAttachments(true);
+        const res = await fetch(`/api/patients/${item.patientId}/attachments`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.attachments)) {
+          setPatientAttachments(json.attachments);
+        } else {
+          setPatientAttachments([]);
+        }
+      } catch (err) {
+        console.error("Failed to load attachments:", err);
+      } finally {
+        setLoadingAttachments(false);
+      }
+    }
+    loadAttachments();
+  }, [item?.patientId, isOpen]);
 
   // Close on Escape key
   useEffect(() => {
@@ -332,13 +371,95 @@ export function ClinicalHistoryDetailModal({
               </p>
             </div>
           )}
+          {/* 8. Patient Attachments & Scans (الأشعة والمستندات الطبية) */}
+          <div>
+            <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
+              <Paperclip size={14} />
+              {isRTL
+                ? `صور الأشعة والتحاليل والمستندات المرفقة (${patientAttachments.length})`
+                : `Attached Medical Scans & Lab Results (${patientAttachments.length})`}
+            </span>
+
+            {patientAttachments.length === 0 ? (
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center text-xs text-slate-400">
+                {isRTL ? "لا توجد أشعة أو ملفات مرفقة لهذا المريض حتى الآن." : "No scans or attachments uploaded for this patient yet."}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {patientAttachments.map((att) => {
+                  const isImage =
+                    att.fileType === "xray" ||
+                    att.fileType === "image" ||
+                    att.fileUrl.startsWith("data:image") ||
+                    att.fileName.match(/\.(jpg|jpeg|png|webp)$/i);
+
+                  return (
+                    <div
+                      key={att.id}
+                      className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5"
+                    >
+                      {/* Image Thumbnail */}
+                      {isImage && (
+                        <div className="relative h-32 w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-700 group cursor-pointer">
+                          <img
+                            src={att.fileUrl}
+                            alt={att.fileName}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            onClick={() => window.open(att.fileUrl, "_blank")}
+                          />
+                          <span className="absolute bottom-2 right-2 rtl:right-auto rtl:left-2 px-2 py-0.5 rounded-md bg-slate-900/80 backdrop-blur text-[10px] font-bold text-white uppercase">
+                            {att.fileType}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                            {att.fileName}
+                          </p>
+                          <span className="text-[10px] text-slate-400 block">
+                            {att.description || (isRTL ? "مرفق طبي مسجل" : "Medical attachment")}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => window.open(att.fileUrl, "_blank")}
+                          className="h-7 px-2.5 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 hover:bg-cyan-100 text-[#0891B2] dark:text-cyan-300 text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
+                        >
+                          <ExternalLink size={11} />
+                          <span>{isRTL ? "عرض" : "Open"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Modal Bottom Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-between gap-3">
-          <span className="text-xs text-slate-400 font-medium">
-            {isRTL ? "سجل طبي مشفر ومحمي ضمن ملفات العيادة" : "Confidential Medical Record • DocTech Clinic OS"}
-          </span>
+        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-between gap-3 flex-wrap">
+          {onAddNewRecord ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onAddNewRecord(item.patientId);
+              }}
+              className="h-9 px-4 rounded-xl bg-[#1A4B8C] hover:bg-[#153e75] text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+            >
+              <Plus size={14} />
+              <span>{isRTL ? "إضافة كشف / متابعة جديدة لهذا المريض" : "Add Encounter / Follow-up"}</span>
+            </button>
+          ) : (
+            <span className="text-xs text-slate-400 font-medium">
+              {isRTL ? "سجل طبي مشفر ومحمي ضمن ملفات العيادة" : "Confidential Medical Record • DocTech Clinic OS"}
+            </span>
+          )}
+
           <button
             onClick={onClose}
             className="h-9 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold transition-all cursor-pointer active:scale-95"
@@ -350,3 +471,4 @@ export function ClinicalHistoryDetailModal({
     </div>
   );
 }
+

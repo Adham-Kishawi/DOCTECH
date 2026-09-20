@@ -38,38 +38,68 @@ export function FileUploader({ patientId, onUploadComplete, isRTL }: FileUploade
     setUploading(true);
 
     try {
-      // Simulate file upload or send to API endpoint
-      const simulatedUrl = URL.createObjectURL(file);
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const dataUrl = reader.result as string;
 
-      setTimeout(() => {
-        const newAttachment: AttachmentItem = {
-          id: `att-${Date.now()}`,
-          fileName: file.name,
-          fileUrl: simulatedUrl,
-          fileType: selectedCategory,
-          uploadedAt: isRTL ? "الآن" : "Just now",
-          fileSize: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-          description: description || undefined,
-        };
+        try {
+          const res = await fetch(`/api/patients/${patientId}/attachments`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: file.name,
+              fileUrl: dataUrl,
+              fileType: selectedCategory,
+              description: description || undefined,
+            }),
+          });
 
-        if (onUploadComplete) {
-          onUploadComplete(newAttachment);
+          const json = await res.json();
+          if (!res.ok || !json.success) {
+            throw new Error(json.error || "Failed to upload");
+          }
+
+          const savedItem: AttachmentItem = {
+            id: json.attachment?.id || `att-${Date.now()}`,
+            fileName: file.name,
+            fileUrl: dataUrl,
+            fileType: selectedCategory,
+            uploadedAt: isRTL ? "الآن" : "Just now",
+            fileSize: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+            description: description || undefined,
+          };
+
+          if (onUploadComplete) {
+            onUploadComplete(savedItem);
+          }
+
+          toast.success(
+            isRTL
+              ? `✅ تم رفع "${file.name}" وتخزينه في ملف المريض بنجاح!`
+              : `✅ "${file.name}" saved to patient profile successfully!`
+          );
+          setDescription("");
+        } catch (postErr: any) {
+          console.error("Attachment upload error:", postErr);
+          toast.error(isRTL ? "تعذر حفظ المرفق في قاعدة البيانات" : "Failed to save attachment");
+        } finally {
+          setUploading(false);
         }
+      };
 
-        toast.success(
-          isRTL
-            ? `✅ تم رفع الملف "${file.name}" وتخزينه بنجاح في ملف المريض!`
-            : `✅ File "${file.name}" uploaded successfully to patient profile!`
-        );
+      reader.onerror = () => {
+        toast.error(isRTL ? "فشل قراءة الملف" : "Failed to read file");
         setUploading(false);
-        setDescription("");
-      }, 600);
+      };
+
+      reader.readAsDataURL(file);
     } catch (error) {
       console.error(error);
       toast.error(isRTL ? "فشل رفع الملف" : "Failed to upload file");
       setUploading(false);
     }
   };
+
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();

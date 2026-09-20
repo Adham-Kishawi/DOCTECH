@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   FileText,
@@ -22,6 +22,7 @@ import {
   Share2,
   Users,
   Download,
+  Plus,
 } from "lucide-react";
 import {
   CLINIC_DOCTORS,
@@ -31,6 +32,7 @@ import {
   DoctorProfile,
 } from "@/lib/doctor/historyData";
 import { ClinicalHistoryDetailModal } from "@/components/doctor/reports/ClinicalHistoryDetailModal";
+import { NewClinicalRecordModal } from "@/components/doctor/reports/NewClinicalRecordModal";
 import { toast } from "sonner";
 
 export default function DoctorReportsListPage() {
@@ -54,59 +56,95 @@ export default function DoctorReportsListPage() {
   const [selectedItem, setSelectedItem] = useState<ClinicalHistoryItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // New Clinical Record Modal State
+  const [isNewRecordModalOpen, setIsNewRecordModalOpen] = useState(false);
+  const [newRecordDefaultMode, setNewRecordDefaultMode] = useState<"record" | "new_patient">("record");
+  const [preselectedPatientId, setPreselectedPatientId] = useState<string | undefined>(undefined);
+
   // Real history list from database with mock fallback
   const [historyList, setHistoryList] = useState<ClinicalHistoryItem[]>(MOCK_CLINICAL_HISTORY);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    async function loadReports() {
-      try {
-        setIsLoading(true);
-        const res = await fetch("/api/reports");
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          const dbItems: ClinicalHistoryItem[] = json.data.map((r: any) => ({
+  const loadReports = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/reports");
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        const dbItems: ClinicalHistoryItem[] = json.data.map((r: any) => {
+          let meta: any = {};
+          let cleanReview = r.doctor_review || "";
+          if (r.doctor_review && r.doctor_review.includes("<!-- CLINICAL_META:")) {
+            try {
+              const match = r.doctor_review.match(/<!-- CLINICAL_META:\s*([\s\S]*?)\s*-->/);
+              if (match && match[1]) {
+                meta = JSON.parse(match[1]);
+                cleanReview = r.doctor_review.replace(/<!-- CLINICAL_META:[\s\S]*?-->/, "").trim();
+              }
+            } catch (e) {
+              console.error("Failed to parse clinical meta", e);
+            }
+          }
+
+          const patientAttachments = r.patients?.patient_attachments || [];
+
+          return {
             id: r.id,
             recordNumber: `REP-${(r.id || "").slice(-6).toUpperCase()}`,
-            type: "TRIAGE_REPORT",
+            type: (meta.type || "TRIAGE_REPORT") as ClinicalRecordType,
             doctorId: r.doctor_id || "all",
             doctorName: "Dr. DOCTECH Lead",
             doctorNameAr: "د. طبيب دوكتك",
             specialty: "General Medicine",
             specialtyAr: "الطب العام",
             patientId: r.patient_id,
-            patientName: r.patients?.name || "Omar Khaled",
-            patientNameAr: r.patients?.name || "عمر خالد",
+            patientName: r.patients?.name || "Patient",
+            patientNameAr: r.patients?.name || "المريض",
             patientAge: 35,
-            patientGender: "male",
-            patientPhone: r.patients?.phone || "01011112222",
+            patientGender: (r.patients?.gender || "male").toLowerCase(),
+            patientPhone: r.patients?.phone || "",
             date: r.created_at ? r.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-            time: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "10:00 AM",
+            time: r.created_at
+              ? new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "10:00 AM",
             relativeTimeAr: "اليوم",
             relativeTimeEn: "Today",
-            title: r.content ? r.content.slice(0, 60) : "Medical Case Report",
-            titleAr: r.content ? r.content.slice(0, 60) : "تقرير حالة طبية",
-            diagnosis: r.doctor_review || undefined,
-            diagnosisAr: r.doctor_review || undefined,
+            title: meta.title || (r.content ? r.content.slice(0, 60) : "Medical Case Report"),
+            titleAr: meta.title || (r.content ? r.content.slice(0, 60) : "تقرير حالة طبية"),
+            diagnosis: meta.diagnosis || cleanReview || undefined,
+            diagnosisAr: meta.diagnosis || cleanReview || undefined,
             symptoms: r.content,
             symptomsAr: r.content,
-            doctorNotes: r.doctor_review || undefined,
-            doctorNotesAr: r.doctor_review || undefined,
+            doctorNotes: cleanReview || undefined,
+            doctorNotesAr: cleanReview || undefined,
             triageNotes: r.triage_notes || undefined,
             triageNotesAr: r.triage_notes || undefined,
+            vitals: meta.vitals || undefined,
+            medicines: meta.medicines || undefined,
+            attachments: patientAttachments.map((att: any) => ({
+              id: att.id,
+              fileName: att.file_name,
+              fileUrl: att.file_url,
+              fileType: att.file_type,
+              description: att.description,
+              uploadedAt: att.created_at,
+            })),
             urgency: "Normal",
             status: r.status === "REVIEWED" ? "reviewed" : r.status === "CLOSED" ? "completed" : "pending_action",
-          }));
-          setHistoryList(dbItems);
-        }
-      } catch (e) {
-        console.error("Failed to load reports:", e);
-      } finally {
-        setIsLoading(false);
+          };
+        });
+        setHistoryList(dbItems);
       }
+    } catch (e) {
+      console.error("Failed to load reports:", e);
+    } finally {
+      setIsLoading(false);
     }
-    loadReports();
   }, []);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
 
   // Active Doctor object if a specific doctor is selected
   const activeDoctor = useMemo(() => {
@@ -208,7 +246,31 @@ export default function DoctorReportsListPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+          <button
+            onClick={() => {
+              setPreselectedPatientId(undefined);
+              setNewRecordDefaultMode("record");
+              setIsNewRecordModalOpen(true);
+            }}
+            className="h-10 px-4 rounded-xl bg-[#1A4B8C] hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer active:scale-95 shadow-sm"
+          >
+            <Plus size={16} />
+            <span>{isRTL ? "+ إضافة كشف / سجل سريري" : "+ New Clinical Record"}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setPreselectedPatientId(undefined);
+              setNewRecordDefaultMode("new_patient");
+              setIsNewRecordModalOpen(true);
+            }}
+            className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer active:scale-95 shadow-sm"
+          >
+            <User size={15} />
+            <span>{isRTL ? "+ مريض وتاريخ جديد" : "+ New Patient & History"}</span>
+          </button>
+
           <button
             onClick={handleExportSummary}
             className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer active:scale-95"
@@ -570,6 +632,22 @@ export default function DoctorReportsListPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         isRTL={isRTL}
+        onAddNewRecord={(patientId) => {
+          setIsModalOpen(false);
+          setPreselectedPatientId(patientId);
+          setNewRecordDefaultMode("record");
+          setIsNewRecordModalOpen(true);
+        }}
+      />
+
+      {/* ━━━ 7. NEW CLINICAL RECORD / PATIENT MODAL ━━━ */}
+      <NewClinicalRecordModal
+        isOpen={isNewRecordModalOpen}
+        onClose={() => setIsNewRecordModalOpen(false)}
+        onRecordCreated={loadReports}
+        isRTL={isRTL}
+        preselectedPatientId={preselectedPatientId}
+        defaultMode={newRecordDefaultMode}
       />
     </div>
   );
