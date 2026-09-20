@@ -1,46 +1,26 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { getClinicSession } from "@/lib/clinicAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
   try {
-    const { userId } = await auth();
+    const session = await getClinicSession();
 
-    if (!userId) {
+    if (!session || session.role !== "doctor" || !session.clinicId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Unauthorized",
+          error: "Unauthorized: Doctor session required",
         },
         { status: 401 }
       );
     }
 
-    // Get the doctor linked to the current Clerk account.
-    const { data: doctor, error: doctorError } = await supabase
-      .from("doctors")
-      .select(
-        "id, clerk_user_id, email, name, specialty, avatar_url, clinic_id"
-      )
-      .eq("clerk_user_id", userId)
-      .maybeSingle();
-
-    if (doctorError) {
-      throw new Error(doctorError.message);
-    }
-
-    if (!doctor) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Doctor profile not found",
-        },
-        { status: 404 }
-      );
-    }
+    const doctor = session.user;
 
     // Get the clinic associated with the doctor.
     const { data: clinic, error: clinicError } = await supabase
@@ -91,38 +71,20 @@ export async function GET() {
 
 export async function PATCH(req: Request) {
   try {
-    const { userId } = await auth();
+    const session = await getClinicSession();
 
-    if (!userId) {
+    if (!session || session.role !== "doctor" || !session.clinicId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Unauthorized",
+          error: "Unauthorized: Doctor session required",
         },
         { status: 401 }
       );
     }
 
-    // Retrieve doctor profile
-    const { data: doctor, error: doctorError } = await supabase
-      .from("doctors")
-      .select("id, clinic_id, clerk_user_id")
-      .eq("clerk_user_id", userId)
-      .maybeSingle();
-
-    if (doctorError) {
-      throw new Error(doctorError.message);
-    }
-
-    if (!doctor) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Doctor profile not found",
-        },
-        { status: 404 }
-      );
-    }
+    const doctor = session.user;
+    const userId = session.userId;
 
     const body = await req.json();
     const {

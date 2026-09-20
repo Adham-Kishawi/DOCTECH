@@ -10,9 +10,13 @@ export async function GET(request: Request) {
     const token = searchParams.get("hub.verify_token");
     const challenge = searchParams.get("hub.challenge");
 
-    const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "doctech_whatsapp_webhook_secret_2026";
+    const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+    if (!expectedToken) {
+      console.error("[WhatsApp Webhook] WHATSAPP_WEBHOOK_VERIFY_TOKEN is not set in environment.");
+      return new NextResponse("Server configuration error", { status: 500 });
+    }
 
-    if (mode === "subscribe" && token === expectedToken) {
+    if (mode === "subscribe" && token && token === expectedToken) {
       console.log("WhatsApp Webhook verified successfully!");
       return new NextResponse(challenge, { status: 200 });
     }
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
     const messageText = message.text?.body || "";
     const senderName = value?.contacts?.[0]?.profile?.name || "Patient";
 
-    console.log(`[WhatsApp Incoming] From: ${senderName} (${fromPhone}): "${messageText}"`);
+    console.log(`[WhatsApp Incoming] Message event received (id: ${messageId || "unknown"})`);
 
     // Mark message as read
     await metaWhatsApp.markAsRead(messageId);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { getClinicSession } from "@/lib/clinicAuth";
 
 const DEFAULT_MOCK_MESSAGES = [
   {
@@ -46,46 +47,50 @@ const DEFAULT_MOCK_MESSAGES = [
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const clinicId = searchParams.get("clinicId") || "cln-001";
-    const channelId = searchParams.get("channelId");
+    const session = await getClinicSession();
 
-    let messages = DEFAULT_MOCK_MESSAGES;
-
-    try {
-      let query = supabase
-        .from("internal_messages")
-        .select("*")
-        .eq("clinic_id", clinicId)
-        .order("sent_at", { ascending: true });
-
-      if (channelId) {
-        query = query.eq("channel_id", channelId);
-      }
-
-      const { data, error } = await query;
-      if (!error && data && data.length > 0) {
-        messages = data.map((row) => ({
-          id: row.id,
-          channelId: row.channel_id || "doctor_secretary_direct",
-          senderRole: row.sender_role || "secretary",
-          senderName: row.sender_name || (row.sender_role === "doctor" ? "Dr. Ahmed Hossam" : "Reception"),
-          content: row.content,
-          isRead: !!row.is_read,
-          sentAt: row.sent_at
-            ? new Date(row.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : "Just now",
-          clinicId: row.clinic_id || clinicId,
-        }));
-      } else if (channelId) {
-        messages = DEFAULT_MOCK_MESSAGES.filter((m) => m.channelId === channelId);
-      }
-    } catch (dbErr) {
-      console.warn("Database query skipped, returning seeded messages:", dbErr);
-      if (channelId) {
-        messages = DEFAULT_MOCK_MESSAGES.filter((m) => m.channelId === channelId);
-      }
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
     }
+
+    const { searchParams } = new URL(request.url);
+    const channelId = searchParams.get("channelId");
+    const clinicId = session.clinicId;
+
+    let query = supabase
+      .from("internal_messages")
+      .select("*")
+      .eq("clinic_id", clinicId)
+      .order("sent_at", { ascending: true });
+
+    if (channelId) {
+      query = query.eq("channel_id", channelId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn("Internal messages query warning/fallback:", error.message);
+      let messages = DEFAULT_MOCK_MESSAGES.map((m) => ({ ...m, clinicId }));
+      if (channelId) {
+        messages = messages.filter((m) => m.channelId === channelId);
+      }
+      return NextResponse.json({ success: true, messages, clinicId });
+    }
+
+    const messages = (data || []).map((m: any) => ({
+      id: m.id,
+      channelId: m.channel_id || m.channelId,
+      senderRole: m.sender_role || m.senderRole,
+      senderName: m.sender_name || m.senderName,
+      content: m.content,
+      isRead: Boolean(m.is_read),
+      sentAt: m.sent_at ? new Date(m.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Now",
+      clinicId: m.clinic_id || clinicId,
+    }));
 
     return NextResponse.json({ success: true, messages, clinicId });
   } catch (error) {
@@ -96,45 +101,57 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getClinicSession();
+
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const {
-      channelId = "doctor_secretary_direct",
-      senderRole = "secretary",
-      senderName,
-      content,
-      clinicId = "cln-001",
-    } = body;
+    const { channelId = "doctor_secretary_direct", content } = body;
 
     if (!content || typeof content !== "string" || !content.trim()) {
       return NextResponse.json({ success: false, error: "Content is required" }, { status: 400 });
     }
 
+    // Authenticated identity: sender cannot spoof role or name
+    const senderRole = session.role;
+    const senderName = session.user.name || (session.role === "doctor" ? "Doctor" : "Receptionist");
+    const clinicId = session.clinicId;
+
     const newMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       channelId,
       senderRole,
-      senderName: senderName || (senderRole === "doctor" ? "Dr. Ahmed Hossam" : "Reception Desk"),
+      senderName,
       content: content.trim(),
       isRead: false,
       sentAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       clinicId,
     };
 
-    try {
-      await supabase.from("internal_messages").insert([
-        {
-          id: newMessage.id,
-          channel_id: newMessage.channelId,
-          clinic_id: newMessage.clinicId,
-          sender_role: newMessage.senderRole,
-          sender_name: newMessage.senderName,
-          content: newMessage.content,
-          is_read: false,
-          sent_at: new Date().toISOString(),
-        },
-      ]);
-    } catch (insertErr) {
-      console.warn("Supabase insert skipped or failed:", insertErr);
+    const { error: insertErr } = await supabase.from("internal_messages").insert([
+      {
+        id: newMessage.id,
+        channel_id: newMessage.channelId,
+        clinic_id: newMessage.clinicId,
+        sender_role: newMessage.senderRole,
+        sender_name: newMessage.senderName,
+        content: newMessage.content,
+        is_read: false,
+        sent_at: new Date().toISOString(),
+      },
+    ]);
+
+    if (insertErr) {
+      console.error("Supabase insert error in internal_messages:", insertErr);
+      return NextResponse.json(
+        { success: false, error: "Failed to persist message in database" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true, message: newMessage });
@@ -146,19 +163,29 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const body = await request.json();
-    const { channelId, readerRole } = body;
+    const session = await getClinicSession();
 
-    try {
-      if (channelId && readerRole) {
-        await supabase
-          .from("internal_messages")
-          .update({ is_read: true })
-          .eq("channel_id", channelId)
-          .neq("sender_role", readerRole);
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { channelId } = body;
+
+    if (channelId) {
+      const { error: patchErr } = await supabase
+        .from("internal_messages")
+        .update({ is_read: true })
+        .eq("channel_id", channelId)
+        .eq("clinic_id", session.clinicId)
+        .neq("sender_role", session.role);
+
+      if (patchErr) {
+        console.warn("Supabase patch failed:", patchErr.message);
       }
-    } catch (patchErr) {
-      console.warn("Supabase patch failed:", patchErr);
     }
 
     return NextResponse.json({ success: true, message: "Marked as read" });

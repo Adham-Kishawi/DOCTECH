@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { processHermesMessage } from "@/lib/ai/hermesAgent";
 import { createNotification } from "@/lib/notificationService";
+import { getClinicSession } from "@/lib/clinicAuth";
 
 export async function POST(request: Request) {
   try {
+    const session = await getClinicSession();
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Active clinic session required" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const {
       fromPhone = "201031445949",
@@ -31,6 +40,7 @@ export async function POST(request: Request) {
     if (result.createdBookingRequest) {
       try {
         await createNotification({
+          clinicId: session.clinicId,
           role: "secretary",
           type: "AI_BOOKING_REQUEST",
           title: "طلب حجز جديد من المساعد الذكي",

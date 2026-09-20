@@ -14,25 +14,35 @@ const CreatePatientSchema = z.object({
   clinicId: z.string().optional(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getClinicSession();
 
-    let query = supabase.from("patients").select("*, appointments(id, date, status)");
-
-    // If authenticated with a clinic, enforce multi-tenant isolation
-    if (session?.clinicId) {
-      query = query.eq("clinic_id", session.clinicId);
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
     }
+
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "100", 10), 1), 500);
+
+    const query = supabase
+      .from("patients")
+      .select("*, appointments(id, date, status)")
+      .eq("clinic_id", session.clinicId)
+      .limit(limit);
 
     const { data: rawPatients, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       // Fallback in case join fails or column mismatch
-      let fallbackQuery = supabase.from("patients").select("*");
-      if (session?.clinicId) {
-        fallbackQuery = fallbackQuery.eq("clinic_id", session.clinicId);
-      }
+      const fallbackQuery = supabase
+        .from("patients")
+        .select("*")
+        .eq("clinic_id", session.clinicId)
+        .limit(limit);
       const { data: fallbackData, error: fallbackError } = await fallbackQuery.order("created_at", { ascending: false });
 
       if (fallbackError) {
@@ -116,14 +126,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const clinicId = parsed.data.clinicId || session?.clinicId;
-
-    if (!clinicId) {
+    if (!session?.clinicId) {
       return NextResponse.json(
-        { success: false, error: "Missing clinic context for patient registration" },
-        { status: 400 }
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
       );
     }
+
+    const clinicId = session.clinicId;
 
     const patientId = crypto.randomUUID();
     const birthDate = parsed.data.dateOfBirth ? new Date(parsed.data.dateOfBirth).toISOString() : null;

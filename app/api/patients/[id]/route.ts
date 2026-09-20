@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { getClinicSession } from "@/lib/clinicAuth";
+
+const PatchPatientSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  phone: z.string().min(1).max(30).optional(),
+  email: z.string().email().max(200).optional().or(z.literal("")),
+  gender: z.enum(["MALE", "FEMALE", "UNKNOWN"]).optional(),
+  address: z.string().max(500).optional().or(z.literal("")),
+  notes: z.string().max(2000).optional().or(z.literal("")),
+  dateOfBirth: z.string().optional().or(z.literal("")),
+});
 
 export async function GET(
   request: Request,
@@ -10,24 +21,28 @@ export async function GET(
     const { id } = await params;
     const session = await getClinicSession();
 
-    let query = supabase
-      .from("patients")
-      .select("*, appointments(*, doctors(name, specialty)), patient_attachments(*)")
-      .eq("id", id);
-
-    if (session?.clinicId) {
-      query = query.eq("clinic_id", session.clinicId);
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
     }
 
-    const { data: patient, error } = await query.maybeSingle();
+    const { data: patient, error } = await supabase
+      .from("patients")
+      .select("*, appointments(*, doctors(name, specialty)), patient_attachments(*)")
+      .eq("id", id)
+      .eq("clinic_id", session.clinicId)
+      .maybeSingle();
 
     if (error || !patient) {
-      // Fallback simple query in case nested relations are configured differently
-      let simpleQuery = supabase.from("patients").select("*").eq("id", id);
-      if (session?.clinicId) {
-        simpleQuery = simpleQuery.eq("clinic_id", session.clinicId);
-      }
-      const { data: simplePatient, error: sErr } = await simpleQuery.maybeSingle();
+      // Fallback simple query
+      const { data: simplePatient, error: sErr } = await supabase
+        .from("patients")
+        .select("*")
+        .eq("id", id)
+        .eq("clinic_id", session.clinicId)
+        .maybeSingle();
 
       if (sErr || !simplePatient) {
         return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
@@ -38,6 +53,7 @@ export async function GET(
         .from("appointments")
         .select("*, doctors(name, specialty)")
         .eq("patient_id", id)
+        .eq("clinic_id", session.clinicId)
         .order("date", { ascending: false });
 
       // Fetch attachments separately
@@ -45,6 +61,7 @@ export async function GET(
         .from("patient_attachments")
         .select("*")
         .eq("patient_id", id)
+        .eq("clinic_id", session.clinicId)
         .order("uploaded_at", { ascending: false });
 
       return NextResponse.json({
@@ -74,28 +91,50 @@ export async function PATCH(
   try {
     const { id } = await params;
     const session = await getClinicSession();
-    const body = await request.json();
 
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const rawBody = await request.json();
+    const parsed = PatchPatientSchema.safeParse(rawBody);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: "Invalid input", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const body = parsed.data;
     const updateData: Record<string, any> = {};
-    if (body.name !== undefined) updateData.name = body.name;
-    if (body.phone !== undefined) updateData.phone = body.phone;
-    if (body.email !== undefined) updateData.email = body.email;
+    if (body.name !== undefined) updateData.name = body.name.trim();
+    if (body.phone !== undefined) updateData.phone = body.phone.trim();
+    if (body.email !== undefined) updateData.email = body.email ? body.email.trim() : null;
     if (body.gender !== undefined) updateData.gender = body.gender;
-    if (body.address !== undefined) updateData.address = body.address;
-    if (body.notes !== undefined) updateData.notes = body.notes;
+    if (body.address !== undefined) updateData.address = body.address ? body.address.trim() : null;
+    if (body.notes !== undefined) updateData.notes = body.notes ? body.notes.trim() : null;
     if (body.dateOfBirth !== undefined) {
       updateData.date_of_birth = body.dateOfBirth ? new Date(body.dateOfBirth).toISOString() : null;
     }
 
-    let query = supabase.from("patients").update(updateData).eq("id", id);
-    if (session?.clinicId) {
-      query = query.eq("clinic_id", session.clinicId);
-    }
-
-    const { data, error } = await query.select().maybeSingle();
+    const { data, error } = await supabase
+      .from("patients")
+      .update(updateData)
+      .eq("id", id)
+      .eq("clinic_id", session.clinicId)
+      .select()
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, patient: data });

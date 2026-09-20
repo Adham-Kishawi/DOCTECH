@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { getClinicSession } from "@/lib/clinicAuth";
 
 const PatchReportSchema = z.object({
   id: z.string().min(1),
@@ -13,9 +14,19 @@ const PatchReportSchema = z.object({
 
 export async function GET() {
   try {
+    const session = await getClinicSession();
+
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
+    }
+
     const { data, error } = await supabase
       .from("reports")
       .select("*, patients(name, phone)")
+      .eq("clinic_id", session.clinicId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -23,13 +34,23 @@ export async function GET() {
     }
 
     return NextResponse.json({ success: true, data });
-  } catch {
+  } catch (error) {
+    console.error("Reports GET error:", error);
     return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
+    const session = await getClinicSession();
+
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const parsed = PatchReportSchema.safeParse(body);
 
@@ -45,6 +66,7 @@ export async function PATCH(req: Request) {
       .from("reports")
       .update(updates)
       .eq("id", id)
+      .eq("clinic_id", session.clinicId)
       .select();
 
     if (error) {
@@ -52,7 +74,8 @@ export async function PATCH(req: Request) {
     }
 
     return NextResponse.json({ success: true, data });
-  } catch {
+  } catch (error) {
+    console.error("Reports PATCH error:", error);
     return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }

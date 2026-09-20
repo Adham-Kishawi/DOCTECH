@@ -1,41 +1,22 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { getClinicSession } from "@/lib/clinicAuth";
 
 export async function GET() {
   try {
-    const { userId } = await auth();
+    const session = await getClinicSession();
 
-    if (!userId) {
+    if (!session || session.role !== "doctor" || !session.clinicId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Unauthorized",
+          error: "Unauthorized: Doctor session required",
         },
         { status: 401 }
       );
     }
 
-    // Get the current doctor and clinic.
-    const { data: doctor, error: doctorError } = await supabase
-      .from("doctors")
-      .select("id, clinic_id")
-      .eq("clerk_user_id", userId)
-      .maybeSingle();
-
-    if (doctorError) {
-      throw new Error(doctorError.message);
-    }
-
-    if (!doctor) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Doctor profile not found",
-        },
-        { status: 404 }
-      );
-    }
+    const doctor = session.user;
 
     // Get all doctors in the same clinic.
     const { data: doctors, error: doctorsError } = await supabase

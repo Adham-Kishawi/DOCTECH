@@ -50,8 +50,7 @@ function buildConfig(raw?: string) {
   return {
     ...fmt,
     carrier: "Egypt",
-    webhookVerifyToken:
-      process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "doctech_whatsapp_webhook_secret_2026",
+    webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
     getDirectChatLink: (message?: string) => {
       return message
         ? `${fmt.waMeLink}?text=${encodeURIComponent(message)}`

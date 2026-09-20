@@ -23,28 +23,38 @@ const CreateAppointmentSchema = z.object({
   bookingStatus: z.enum(["PENDING_REVIEW", "APPROVED", "REJECTED"]).default("APPROVED"),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getClinicSession();
+
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "100", 10), 1), 500);
 
     let query = supabase
       .from("appointments")
       .select("*, patients(id, name, phone), doctors(id, name, specialty)")
-      .order("date", { ascending: false });
-
-    if (session?.clinicId) {
-      query = query.eq("clinic_id", session.clinicId);
-    }
+      .eq("clinic_id", session.clinicId)
+      .order("date", { ascending: false })
+      .limit(limit);
 
     const { data, error } = await query;
 
     if (error) {
       console.error("Fetch appointments error:", error);
       // Fallback simple query
-      let fallbackQuery = supabase.from("appointments").select("*").order("date", { ascending: false });
-      if (session?.clinicId) {
-        fallbackQuery = fallbackQuery.eq("clinic_id", session.clinicId);
-      }
+      const fallbackQuery = supabase
+        .from("appointments")
+        .select("*")
+        .eq("clinic_id", session.clinicId)
+        .order("date", { ascending: false })
+        .limit(limit);
       const { data: fallbackData } = await fallbackQuery;
 
       return NextResponse.json({ success: true, data: fallbackData || [] });
@@ -108,15 +118,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const appointment = parsed.data;
-    const clinicId = appointment.clinicId || session?.clinicId;
-
-    if (!clinicId) {
+    if (!session?.clinicId) {
       return NextResponse.json(
-        { success: false, error: "Missing clinic context for appointment" },
-        { status: 400 }
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
       );
     }
+
+    const appointment = parsed.data;
+    const clinicId = session.clinicId;
 
     const appointmentDate = new Date(appointment.date);
     if (Number.isNaN(appointmentDate.getTime())) {
