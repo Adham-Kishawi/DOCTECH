@@ -1,18 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-doctech.supabase.co";
-const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  "placeholder-anon-key-doctech-demo";
+const cleanStr = (val?: string) =>
+  val ? val.replace(/^\uFEFF/, "").trim().replace(/^["']|["']$/g, "").trim() : undefined;
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
-    console.info(
-      "💡 [DOCTECH] Running in Demo/Local Mode with mock data. To connect to live Supabase, set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local"
-    );
-  }
-}
+const supabaseUrl =
+  cleanStr(process.env.NEXT_PUBLIC_SUPABASE_URL) ||
+  cleanStr(process.env.SUPABASE_URL) ||
+  "https://hpgnjcbhpkvflqatzigx.supabase.co";
+
+const supabaseAnonKey =
+  cleanStr(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+  cleanStr(process.env.SUPABASE_ANON_KEY) ||
+  cleanStr(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) ||
+  cleanStr(process.env.SUPABASE_PUBLISHABLE_KEY) ||
+  "";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

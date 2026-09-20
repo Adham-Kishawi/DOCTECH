@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useAuth, useSignIn, useClerk, useUser } from "@clerk/nextjs";
+import { useAuth, useSignIn, useClerk } from "@clerk/nextjs";
 import {
   Lock,
   Mail,
@@ -13,8 +13,6 @@ import {
   KeyRound,
   RefreshCw,
   ArrowLeft,
-  LogOut,
-  LayoutDashboard,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,7 +23,6 @@ export default function SignInPage() {
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { signIn } = useSignIn();
   const clerk = useClerk();
-  const { user: clerkUser } = useUser();
 
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
@@ -34,7 +31,6 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(false);
 
   // 2FA / Verification code state (if needed)
   const [step, setStep] = useState<"credentials" | "mfa">("credentials");
@@ -46,7 +42,7 @@ export default function SignInPage() {
       const response = await fetch("/api/auth/me", {
         credentials: "include",
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (response.status === 403) {
         router.replace(`/${locale}/clinic-setup`);
@@ -54,7 +50,7 @@ export default function SignInPage() {
       }
 
       // If 401 right after sign-in, wait briefly for session cookie sync and retry
-      if (response.status === 401 && retryCount < 2) {
+      if (response.status === 401 && retryCount < 3) {
         await new Promise((r) => setTimeout(r, 600));
         return redirectSignedInUser(retryCount + 1);
       }
@@ -80,13 +76,12 @@ export default function SignInPage() {
     }
   };
 
-  // If the user is already signed in, try redirecting once
+  // If user is already signed in, automatically redirect directly to dashboard
   useEffect(() => {
     if (!authLoaded || !isSignedIn) return;
 
-    setCheckingSession(true);
-    redirectSignedInUser().finally(() => {
-      setCheckingSession(false);
+    redirectSignedInUser().catch((err) => {
+      console.error("Auto redirect error:", err);
     });
   }, [authLoaded, isSignedIn]);
 
@@ -270,17 +265,6 @@ export default function SignInPage() {
     setStep("credentials");
   };
 
-  const handleSignOut = async () => {
-    try {
-      await clerk.signOut();
-      toast.success(isRTL ? "تم تسجيل الخروج بنجاح" : "Signed out successfully");
-      setEmail("");
-      setPassword("");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to sign out");
-    }
-  };
-
   return (
     <div className="w-full relative">
       {/* Ambient background glow behind card */}
@@ -288,260 +272,253 @@ export default function SignInPage() {
 
       {/* Main Stylish Card Container */}
       <div className="relative w-full bg-white/95 dark:bg-[#111C2A]/90 backdrop-blur-2xl border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-6 sm:p-9 shadow-2xl shadow-blue-950/10 dark:shadow-black/60 transition-all">
-        {/* Header with Icon */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 text-[#3368A0] dark:text-[#4B85C5] mb-3.5 shadow-inner">
+        {isSignedIn ? (
+          /* If already signed in, show a clean direct redirect state */
+          <div className="text-center py-8 space-y-4">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 text-[#3368A0] dark:text-[#4B85C5] shadow-inner animate-pulse">
+              <RefreshCw size={24} className="animate-spin text-[#3368A0] dark:text-[#4B85C5]" />
+            </div>
+
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {isRTL ? "جاري نقلك إلى لوحة التحكم..." : "Redirecting to Dashboard..."}
+            </h2>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {isRTL ? "يرجى الانتظار لحظات" : "Please wait a moment"}
+            </p>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => clerk.signOut().then(() => window.location.reload())}
+                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline cursor-pointer"
+              >
+                {isRTL ? "تسجيل الخروج واستخدام حساب آخر" : "Sign out and use another account"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Header with Icon */}
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 text-[#3368A0] dark:text-[#4B85C5] mb-3.5 shadow-inner">
+                {step === "credentials" ? (
+                  <Lock size={22} className="text-[#3368A0] dark:text-[#4B85C5]" />
+                ) : (
+                  <KeyRound size={22} className="text-[#3368A0] dark:text-[#4B85C5]" />
+                )}
+              </div>
+
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                {step === "credentials"
+                  ? isRTL
+                    ? "تسجيل الدخول"
+                    : "Sign In to DOCTECH"
+                  : isRTL
+                    ? "رمز التحقق"
+                    : "Verification Code"}
+              </h1>
+
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                {step === "credentials"
+                  ? isRTL
+                    ? "سجل دخولك كطبيب أو سكرتير لمتابعة أعمال العيادة"
+                    : "Access your clinical workspace as a Doctor or Secretary"
+                  : isRTL
+                    ? `أدخل رمز التحقق المرسل إلى: ${email}`
+                    : `Enter the code sent to: ${email}`}
+              </p>
+            </div>
+
             {step === "credentials" ? (
-              <Lock size={22} className="text-[#3368A0] dark:text-[#4B85C5]" />
-            ) : (
-              <KeyRound size={22} className="text-[#3368A0] dark:text-[#4B85C5]" />
-            )}
-          </div>
+              /* Step 1: Main Login Form */
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Email */}
+                <div>
+                  <label
+                    htmlFor="email-sign"
+                    className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5"
+                  >
+                    {isRTL ? "البريد الإلكتروني" : "Email Address"}
+                  </label>
 
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {step === "credentials"
-              ? isRTL
-                ? "تسجيل الدخول"
-                : "Sign In to DOCTECH"
-              : isRTL
-                ? "رمز التحقق"
-                : "Verification Code"}
-          </h1>
+                  <div className="relative">
+                    <Mail className="doctech-input-icon" size={17} />
 
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
-            {step === "credentials"
-              ? isRTL
-                ? "سجل دخولك كطبيب أو سكرتير لمتابعة أعمال العيادة"
-                : "Access your clinical workspace as a Doctor or Secretary"
-              : isRTL
-                ? `أدخل رمز التحقق المرسل إلى: ${email}`
-                : `Enter the code sent to: ${email}`}
-          </p>
-        </div>
+                    <input
+                      type="email"
+                      required
+                      id="email-sign"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="doctor@doctech.com"
+                      className="doctech-input bg-slate-50/50 dark:bg-[#131E2E] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-800 focus:border-[#3368A0] dark:focus:border-[#4B85C5] focus:ring-2 focus:ring-[#3368A0]/20 rounded-xl"
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
 
-        {/* If already signed in, show a helper banner */}
-        {isSignedIn && (
-          <div className="mb-5 p-3 rounded-2xl bg-blue-50/90 dark:bg-blue-950/50 border border-blue-200/80 dark:border-blue-900/60 text-xs flex flex-col sm:flex-row items-center justify-between gap-2.5 transition-all">
-            <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200 font-medium truncate">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="truncate">
-                {isRTL ? "أنت مسجل حالياً كـ:" : "Signed in as:"}{" "}
-                <strong>
-                  {clerkUser?.primaryEmailAddress?.emailAddress || clerkUser?.fullName || "Active User"}
-                </strong>
-              </span>
-            </div>
+                {/* Password */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="pass-sign"
+                      className="block text-xs font-bold text-slate-700 dark:text-slate-300"
+                    >
+                      {isRTL ? "كلمة المرور" : "Password"}
+                    </label>
 
-            <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                onClick={() => redirectSignedInUser()}
-                disabled={checkingSession}
-                className="px-3 py-1.5 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-sm"
-              >
-                <LayoutDashboard size={13} />
-                <span>{isRTL ? "لوحة التحكم" : "Dashboard"}</span>
-              </button>
+                    <Link
+                      href={`/${locale}/forgot-password`}
+                      className="text-xs text-[#3368A0] dark:text-[#4B85C5] hover:underline font-semibold"
+                    >
+                      {isRTL ? "نسيت كلمة المرور؟" : "Forgot Password?"}
+                    </Link>
+                  </div>
 
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="px-3 py-1.5 rounded-xl bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
-              >
-                <LogOut size={13} />
-                <span>{isRTL ? "خروج" : "Sign Out"}</span>
-              </button>
-            </div>
-          </div>
-        )}
+                  <div className="relative">
+                    <Lock className="doctech-input-icon" size={17} />
 
-        {step === "credentials" ? (
-          /* Step 1: Main Login Form */
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email-sign"
-                className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5"
-              >
-                {isRTL ? "البريد الإلكتروني" : "Email Address"}
-              </label>
+                    <input
+                      id="pass-sign"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="doctech-input bg-slate-50/50 dark:bg-[#131E2E] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-800 focus:border-[#3368A0] dark:focus:border-[#4B85C5] focus:ring-2 focus:ring-[#3368A0]/20 rounded-xl"
+                      autoComplete="current-password"
+                    />
 
-              <div className="relative">
-                <Mail className="doctech-input-icon" size={17} />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="doctech-input-action hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                </div>
 
-                <input
-                  type="email"
-                  required
-                  id="email-sign"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="doctor@doctech.com"
-                  className="doctech-input bg-slate-50/50 dark:bg-[#131E2E] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-800 focus:border-[#3368A0] dark:focus:border-[#4B85C5] focus:ring-2 focus:ring-[#3368A0]/20 rounded-xl"
-                  autoComplete="email"
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label
-                  htmlFor="pass-sign"
-                  className="block text-xs font-bold text-slate-700 dark:text-slate-300"
+                {/* Sign In Button */}
+                <button
+                  type="submit"
+                  disabled={submitting || !authLoaded}
+                  className="w-full mt-3 h-11 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white text-sm font-bold shadow-lg shadow-blue-600/20 dark:shadow-blue-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {isRTL ? "كلمة المرور" : "Password"}
-                </label>
+                  <span>
+                    {submitting
+                      ? isRTL
+                        ? "جاري الدخول..."
+                        : "Signing In..."
+                      : isRTL
+                        ? "تسجيل الدخول"
+                        : "Sign In"}
+                  </span>
 
-                <Link
-                  href={`/${locale}/forgot-password`}
-                  className="text-xs text-[#3368A0] dark:text-[#4B85C5] hover:underline font-semibold"
-                >
-                  {isRTL ? "نسيت كلمة المرور؟" : "Forgot Password?"}
-                </Link>
-              </div>
+                  {!submitting && (
+                    <ArrowRight
+                      size={16}
+                      className={isRTL ? "rotate-180" : ""}
+                    />
+                  )}
+                </button>
 
-              <div className="relative">
-                <Lock className="doctech-input-icon" size={17} />
-
-                <input
-                  id="pass-sign"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="doctech-input bg-slate-50/50 dark:bg-[#131E2E] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-800 focus:border-[#3368A0] dark:focus:border-[#4B85C5] focus:ring-2 focus:ring-[#3368A0]/20 rounded-xl"
-                  autoComplete="current-password"
-                />
-
+                {/* Reset */}
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="doctech-input-action hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+                  onClick={handleReset}
+                  disabled={submitting}
+                  className="w-full h-11 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-sm font-medium transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  {isRTL ? "إعادة تعيين" : "Reset"}
                 </button>
-              </div>
-            </div>
+              </form>
+            ) : (
+              /* Step 2: 2FA Verification Code Form */
+              <form onSubmit={handleVerifyMfa} className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="mfa-code"
+                    className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5"
+                  >
+                    {isRTL ? "رمز التحقق المكون من 6 أرقام" : "6-Digit Verification Code"}
+                  </label>
 
-            {/* Sign In Button */}
-            <button
-              type="submit"
-              disabled={submitting || !authLoaded}
-              className="w-full mt-3 h-11 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white text-sm font-bold shadow-lg shadow-blue-600/20 dark:shadow-blue-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <span>
-                {submitting
-                  ? isRTL
-                    ? "جاري الدخول..."
-                    : "Signing In..."
-                  : isRTL
-                    ? "تسجيل الدخول"
-                    : "Sign In"}
-              </span>
+                  <div className="relative">
+                    <KeyRound className="doctech-input-icon" size={17} />
 
-              {!submitting && (
-                <ArrowRight
-                  size={16}
-                  className={isRTL ? "rotate-180" : ""}
-                />
-              )}
-            </button>
+                    <input
+                      type="text"
+                      required
+                      id="mfa-code"
+                      maxLength={6}
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123456"
+                      className="doctech-input tracking-widest text-center text-lg font-mono bg-slate-50/50 dark:bg-[#131E2E] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-800 focus:border-[#3368A0] dark:focus:border-[#4B85C5] focus:ring-2 focus:ring-[#3368A0]/20 rounded-xl"
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+                </div>
 
-            {/* Reset */}
-            <button
-              type="button"
-              onClick={handleReset}
-              disabled={submitting}
-              className="w-full h-11 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-sm font-medium transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isRTL ? "إعادة تعيين" : "Reset"}
-            </button>
-          </form>
-        ) : (
-          /* Step 2: 2FA Verification Code Form */
-          <form onSubmit={handleVerifyMfa} className="space-y-4">
-            <div>
-              <label
-                htmlFor="mfa-code"
-                className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5"
-              >
-                {isRTL ? "رمز التحقق المكون من 6 أرقام" : "6-Digit Verification Code"}
-              </label>
+                {/* Verify Button */}
+                <button
+                  type="submit"
+                  disabled={submitting || verificationCode.length < 6}
+                  className="w-full mt-3 h-11 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white text-sm font-bold shadow-lg shadow-blue-600/20 dark:shadow-blue-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <span>
+                    {submitting
+                      ? isRTL
+                        ? "جاري التحقق..."
+                        : "Verifying..."
+                      : isRTL
+                        ? "تأكيد الرمز والدخول"
+                        : "Verify & Sign In"}
+                  </span>
 
-              <div className="relative">
-                <KeyRound className="doctech-input-icon" size={17} />
+                  {!submitting && (
+                    <ArrowRight
+                      size={16}
+                      className={isRTL ? "rotate-180" : ""}
+                    />
+                  )}
+                </button>
 
-                <input
-                  type="text"
-                  required
-                  id="mfa-code"
-                  maxLength={6}
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="123456"
-                  className="doctech-input tracking-widest text-center text-lg font-mono bg-slate-50/50 dark:bg-[#131E2E] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-800 focus:border-[#3368A0] dark:focus:border-[#4B85C5] focus:ring-2 focus:ring-[#3368A0]/20 rounded-xl"
-                  autoComplete="one-time-code"
-                />
-              </div>
-            </div>
+                {/* Resend Code & Back */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    disabled={resendingCode || submitting}
+                    className="flex-1 h-10 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    <RefreshCw size={13} className={resendingCode ? "animate-spin" : ""} />
+                    <span>
+                      {resendingCode
+                        ? isRTL
+                          ? "جاري الإرسال..."
+                          : "Resending..."
+                        : isRTL
+                          ? "إعادة إرسال الرمز"
+                          : "Resend Code"}
+                    </span>
+                  </button>
 
-            {/* Verify Button */}
-            <button
-              type="submit"
-              disabled={submitting || verificationCode.length < 6}
-              className="w-full mt-3 h-11 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white text-sm font-bold shadow-lg shadow-blue-600/20 dark:shadow-blue-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <span>
-                {submitting
-                  ? isRTL
-                    ? "جاري التحقق..."
-                    : "Verifying..."
-                  : isRTL
-                    ? "تأكيد الرمز والدخول"
-                    : "Verify & Sign In"}
-              </span>
-
-              {!submitting && (
-                <ArrowRight
-                  size={16}
-                  className={isRTL ? "rotate-180" : ""}
-                />
-              )}
-            </button>
-
-            {/* Resend Code & Back */}
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleResendCode}
-                disabled={resendingCode || submitting}
-                className="flex-1 h-10 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
-              >
-                <RefreshCw size={13} className={resendingCode ? "animate-spin" : ""} />
-                <span>
-                  {resendingCode
-                    ? isRTL
-                      ? "جاري الإرسال..."
-                      : "Resending..."
-                    : isRTL
-                      ? "إعادة إرسال الرمز"
-                      : "Resend Code"}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setStep("credentials")}
-                disabled={submitting}
-                className="flex-1 h-10 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
-              >
-                <ArrowLeft size={13} className={isRTL ? "rotate-180" : ""} />
-                <span>{isRTL ? "الرجوع" : "Back"}</span>
-              </button>
-            </div>
-          </form>
+                  <button
+                    type="button"
+                    onClick={() => setStep("credentials")}
+                    disabled={submitting}
+                    className="flex-1 h-10 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    <ArrowLeft size={13} className={isRTL ? "rotate-180" : ""} />
+                    <span>{isRTL ? "الرجوع" : "Back"}</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </>
         )}
       </div>
     </div>
