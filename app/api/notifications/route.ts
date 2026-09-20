@@ -1,50 +1,59 @@
 import { NextResponse } from "next/server";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { getClinicSession } from "@/lib/clinicAuth";
 
 export async function GET(request: Request) {
   try {
+    const session = await getClinicSession();
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
-    const role = searchParams.get("role") || "secretary";
+    const role = searchParams.get("role") || session.role;
 
-    const mockNotifications = [
-      {
-        id: "notif-1",
-        type: "AI_BOOKING_REQUEST",
-        title: "New AI Booking Request",
-        titleAr: "طلب حجز جديد من المساعد الذكي",
-        body: "Sara Ibrahim requested consultation today at 10:30 AM via WhatsApp.",
-        bodyAr: "سارة إبراهيم طلبت كشف اليوم الساعة ١٠:٣٠ ص عبر الواتساب.",
-        time: "5 mins ago",
-        isRead: false,
-        link: "appointments/pending",
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "notif-2",
-        type: "NEW_APPOINTMENT",
-        title: "New Appointment Scheduled",
-        titleAr: "تم تسجيل حجز جديد",
-        body: "Youssef Nabil booked for 09:30 AM with Dr. Ahmed Hossam.",
-        bodyAr: "تم حجز موعد ليوسف نبيل الساعة ٠٩:٣٠ ص مع د. أحمد حسام.",
-        time: "25 mins ago",
-        isRead: false,
-        link: "appointments",
-        createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-      },
-      {
-        id: "notif-3",
-        type: "NEW_REPORT",
-        title: "Urgent Medical Inquiry",
-        titleAr: "استفسار طبي عاجل",
-        body: "Kareem Tarek sent high-fever symptoms report for review.",
-        bodyAr: "كريم طارق أرسل تقرير أعراض حرارة مرتفعة للمراجعة.",
-        time: "1 hour ago",
-        isRead: true,
-        link: "reports",
-        createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-      },
-    ];
+    const { data: dbNotifications, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("clinic_id", session.clinicId)
+      .order("created_at", { ascending: false })
+      .limit(30);
 
-    return NextResponse.json({ success: true, notifications: mockNotifications, role });
+    if (error) {
+      console.error("Notifications GET error:", error);
+      return NextResponse.json({ success: true, notifications: [], role });
+    }
+
+    const notifications = (dbNotifications || []).map((n) => {
+      const createdAt = n.created_at || new Date().toISOString();
+      const diffMs = Date.now() - new Date(createdAt).getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      let timeStr = "Just now";
+      if (diffMins >= 60) {
+        const hours = Math.floor(diffMins / 60);
+        timeStr = `${hours}h ago`;
+      } else if (diffMins > 0) {
+        timeStr = `${diffMins}m ago`;
+      }
+
+      return {
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        titleAr: n.title,
+        body: n.body,
+        bodyAr: n.body,
+        time: timeStr,
+        isRead: n.is_read,
+        link: n.link || "dashboard",
+        createdAt,
+      };
+    });
+
+    return NextResponse.json({ success: true, notifications, role });
   } catch (error) {
     console.error("Notifications GET error:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch notifications" }, { status: 500 });
@@ -53,15 +62,46 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const session = await getClinicSession();
+    if (!session?.clinicId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Clinic authentication required" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { notificationId, markAll } = body;
 
-    return NextResponse.json({
-      success: true,
-      message: markAll ? "All marked as read" : `Notification ${notificationId} marked as read`,
-    });
+    if (markAll) {
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("clinic_id", session.clinicId);
+
+      return NextResponse.json({
+        success: true,
+        message: "All notifications marked as read",
+      });
+    }
+
+    if (notificationId) {
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", notificationId)
+        .eq("clinic_id", session.clinicId);
+
+      return NextResponse.json({
+        success: true,
+        message: `Notification ${notificationId} marked as read`,
+      });
+    }
+
+    return NextResponse.json({ success: false, error: "Missing parameters" }, { status: 400 });
   } catch (error) {
     console.error("Notifications PATCH error:", error);
     return NextResponse.json({ success: false, error: "Failed to update notification" }, { status: 500 });
   }
 }
+

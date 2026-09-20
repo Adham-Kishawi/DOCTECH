@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
   FileText,
@@ -39,7 +39,7 @@ export default function DoctorReportsListPage() {
   const isRTL = locale === "ar";
 
   // Selected Doctor Filter ('all' or doctorId)
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("doc-1");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("all");
 
   // Category Filter ('ALL' | 'CONSULTATION' | 'PRESCRIPTION' | 'TRIAGE_REPORT')
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
@@ -54,6 +54,60 @@ export default function DoctorReportsListPage() {
   const [selectedItem, setSelectedItem] = useState<ClinicalHistoryItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Real history list from database with mock fallback
+  const [historyList, setHistoryList] = useState<ClinicalHistoryItem[]>(MOCK_CLINICAL_HISTORY);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadReports() {
+      try {
+        setIsLoading(true);
+        const res = await fetch("/api/reports");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const dbItems: ClinicalHistoryItem[] = json.data.map((r: any) => ({
+            id: r.id,
+            recordNumber: `REP-${(r.id || "").slice(-6).toUpperCase()}`,
+            type: "TRIAGE_REPORT",
+            doctorId: r.doctor_id || "all",
+            doctorName: "Dr. DOCTECH Lead",
+            doctorNameAr: "د. طبيب دوكتك",
+            specialty: "General Medicine",
+            specialtyAr: "الطب العام",
+            patientId: r.patient_id,
+            patientName: r.patients?.name || "Omar Khaled",
+            patientNameAr: r.patients?.name || "عمر خالد",
+            patientAge: 35,
+            patientGender: "male",
+            patientPhone: r.patients?.phone || "01011112222",
+            date: r.created_at ? r.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
+            time: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "10:00 AM",
+            relativeTimeAr: "اليوم",
+            relativeTimeEn: "Today",
+            title: r.content ? r.content.slice(0, 60) : "Medical Case Report",
+            titleAr: r.content ? r.content.slice(0, 60) : "تقرير حالة طبية",
+            diagnosis: r.doctor_review || undefined,
+            diagnosisAr: r.doctor_review || undefined,
+            symptoms: r.content,
+            symptomsAr: r.content,
+            doctorNotes: r.doctor_review || undefined,
+            doctorNotesAr: r.doctor_review || undefined,
+            triageNotes: r.triage_notes || undefined,
+            triageNotesAr: r.triage_notes || undefined,
+            urgency: "Normal",
+            status: r.status === "REVIEWED" ? "reviewed" : r.status === "CLOSED" ? "completed" : "pending_action",
+          }));
+          setHistoryList(dbItems);
+        }
+      } catch (e) {
+        console.error("Failed to load reports:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadReports();
+  }, []);
+
   // Active Doctor object if a specific doctor is selected
   const activeDoctor = useMemo(() => {
     return CLINIC_DOCTORS.find((d) => d.id === selectedDoctorId) || null;
@@ -61,11 +115,12 @@ export default function DoctorReportsListPage() {
 
   // Filtered History list
   const filteredHistory = useMemo(() => {
-    return MOCK_CLINICAL_HISTORY.filter((item) => {
+    return historyList.filter((item) => {
       // 1. Doctor filter
       if (selectedDoctorId !== "all" && item.doctorId !== selectedDoctorId) {
         return false;
       }
+
 
       // 2. Category filter
       if (activeCategory !== "ALL" && item.type !== activeCategory) {
@@ -107,8 +162,8 @@ export default function DoctorReportsListPage() {
   const stats = useMemo(() => {
     const baseItems =
       selectedDoctorId === "all"
-        ? MOCK_CLINICAL_HISTORY
-        : MOCK_CLINICAL_HISTORY.filter((i) => i.doctorId === selectedDoctorId);
+        ? historyList
+        : historyList.filter((i) => i.doctorId === selectedDoctorId);
 
     const consultations = baseItems.filter((i) => i.type === "CONSULTATION").length;
     const prescriptions = baseItems.filter((i) => i.type === "PRESCRIPTION").length;
@@ -122,7 +177,7 @@ export default function DoctorReportsListPage() {
       triageReports,
       highUrgency,
     };
-  }, [selectedDoctorId]);
+  }, [historyList, selectedDoctorId]);
 
   const handleOpenDetail = (item: ClinicalHistoryItem) => {
     setSelectedItem(item);

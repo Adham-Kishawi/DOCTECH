@@ -25,7 +25,9 @@ export async function GET(request: Request) {
   };
 
   // 1. Create missing tables using pg Client
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   const dbUrl =
+    process.env.POSTGRES_URL_NON_POOLING ||
     process.env.POSTGRES_URL ||
     process.env.DATABASE_URL ||
     process.env.POSTGRES_PRISMA_URL;
