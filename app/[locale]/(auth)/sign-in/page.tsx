@@ -36,14 +36,22 @@ export default function SignInPage() {
   const [verificationCode, setVerificationCode] = useState("");
   const [resendingCode, setResendingCode] = useState(false);
 
-  const redirectSignedInUser = async () => {
+  const redirectSignedInUser = async (retryCount = 0) => {
     try {
-      const response = await fetch("/api/auth/me");
+      const response = await fetch("/api/auth/me", {
+        credentials: "include",
+      });
       const data = await response.json();
 
       if (response.status === 403) {
         router.replace(`/${locale}/clinic-setup`);
         return;
+      }
+
+      // If 401 right after sign-in, wait briefly for session cookie sync and retry
+      if (response.status === 401 && retryCount < 2) {
+        await new Promise((r) => setTimeout(r, 600));
+        return redirectSignedInUser(retryCount + 1);
       }
 
       if (!response.ok || !data.success) {
@@ -56,12 +64,13 @@ export default function SignInPage() {
       }
 
       router.replace(`/${locale}/${data.role}/dashboard`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Existing session redirect error:", error);
       toast.error(
-        isRTL
-          ? "تعذر تحديد حسابك"
-          : "Unable to determine your account"
+        error?.message ||
+          (isRTL
+            ? "تعذر تحديد حسابك"
+            : "Unable to determine your account")
       );
     }
   };
