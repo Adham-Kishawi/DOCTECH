@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -108,8 +108,10 @@ export default function DoctorLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const locale = pathname.split("/")[1] || "en";
+  const rawPathname = usePathname();
+  const pathname = rawPathname || "";
+  const params = useParams();
+  const locale = (params?.locale as string) || (pathname ? pathname.split("/")[1] : "en") || "en";
   const isRTL = locale === "ar";
   const [sidebarOpen, setSidebarOpen] = useState(false);
 

@@ -64,6 +64,11 @@ export default function SignInPage() {
         );
       }
 
+      // Set cookie so server-side middleware and homepage know the active role
+      if (data.role) {
+        document.cookie = `doctech_role=${data.role}; path=/; max-age=86400; SameSite=Lax`;
+      }
+
       router.replace(`/${locale}/${data.role}/dashboard`);
     } catch (error: any) {
       console.error("Existing session redirect error:", error);

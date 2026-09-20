@@ -23,80 +23,113 @@ export default async function DoctorDashboardPage({
 }: {
   params: Promise<{ locale: string }>;
 }) {
-  const { locale } = await params;
+  const resolvedParams = await Promise.resolve(params);
+  const locale = resolvedParams?.locale || "en";
   const isRTL = locale === "ar";
 
-  const { userId } = await auth();
+  let userId: string | null = null;
+  try {
+    const authData = await auth();
+    userId = authData.userId;
+  } catch (e) {
+    console.error("Auth error in DoctorDashboardPage:", e);
+  }
 
   // Load real doctor from DB
-  let doctor = null;
-  let clinic = null;
+  let doctor: any = null;
+  let clinic: any = null;
   let todayAppointments: any[] = [];
   let pendingReports: any[] = [];
   let totalPatientsCount = 0;
   let unreadMessagesCount = 0;
 
   if (userId) {
-    const { data: doc } = await supabase
-      .from("doctors")
-      .select("id, name, specialty, clinic_id")
-      .eq("clerk_user_id", userId)
-      .maybeSingle();
-
-    if (doc) {
-      doctor = doc;
-
-      // Load clinic
-      const { data: cln } = await supabase
-        .from("clinics")
-        .select("id, name")
-        .eq("id", doc.clinic_id)
+    try {
+      const { data: doc, error: docError } = await supabase
+        .from("doctors")
+        .select("id, name, specialty, clinic_id")
+        .eq("clerk_user_id", userId)
         .maybeSingle();
-      clinic = cln;
 
-      // Load today's real appointments
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
+      if (!docError && doc) {
+        doctor = doc;
 
-      const { data: apts } = await supabase
-        .from("appointments")
-        .select("*, patients(name, phone)")
-        .eq("doctor_id", doc.id)
-        .gte("date", todayStart.toISOString())
-        .lte("date", todayEnd.toISOString())
-        .order("date", { ascending: true });
+        // Load clinic
+        try {
+          const { data: cln } = await supabase
+            .from("clinics")
+            .select("id, name")
+            .eq("id", doc.clinic_id)
+            .maybeSingle();
+          clinic = cln;
+        } catch (e) {
+          console.warn("Clinic fetch error:", e);
+        }
 
-      todayAppointments = apts || [];
+        // Load today's real appointments
+        try {
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          const todayEnd = new Date();
+          todayEnd.setHours(23, 59, 59, 999);
 
-      // Load pending reports
-      const { data: reps } = await supabase
-        .from("reports")
-        .select("*, patients(name)")
-        .eq("doctor_id", doc.id)
-        .eq("status", "PENDING")
-        .order("created_at", { ascending: false })
-        .limit(5);
+          const { data: apts } = await supabase
+            .from("appointments")
+            .select("*, patients(name, phone)")
+            .eq("doctor_id", doc.id)
+            .gte("date", todayStart.toISOString())
+            .lte("date", todayEnd.toISOString())
+            .order("date", { ascending: true });
 
-      pendingReports = reps || [];
+          todayAppointments = apts || [];
+        } catch (e) {
+          console.warn("Appointments fetch error:", e);
+        }
 
-      // Count total patients for this clinic
-      const { count: patCount } = await supabase
-        .from("patients")
-        .select("id", { count: "exact", head: true })
-        .eq("clinic_id", doc.clinic_id);
+        // Load pending reports
+        try {
+          const { data: reps, error: repError } = await supabase
+            .from("reports")
+            .select("*, patients(name)")
+            .eq("doctor_id", doc.id)
+            .eq("status", "PENDING")
+            .order("created_at", { ascending: false })
+            .limit(5);
 
-      totalPatientsCount = patCount || 0;
+          if (!repError && reps) {
+            pendingReports = reps;
+          }
+        } catch (e) {
+          console.warn("Reports fetch error:", e);
+        }
 
-      // Count unread internal messages
-      const { count: msgCount } = await supabase
-        .from("internal_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("doctor_id", doc.id)
-        .eq("is_read", false);
+        // Count total patients for this clinic
+        try {
+          const { count: patCount } = await supabase
+            .from("patients")
+            .select("id", { count: "exact", head: true })
+            .eq("clinic_id", doc.clinic_id);
 
-      unreadMessagesCount = msgCount || 0;
+          totalPatientsCount = patCount || 0;
+        } catch (e) {
+          console.warn("Patients count error:", e);
+        }
+
+        // Count unread internal messages
+        try {
+          const { count: msgCount } = await supabase
+            .from("internal_messages")
+            .select("id", { count: "exact", head: true })
+            .eq("doctor_id", doc.id)
+            .eq("is_read", false);
+
+          unreadMessagesCount = msgCount || 0;
+        } catch (e) {
+          console.warn("Messages count error:", e);
+        }
+      }
+    } catch (e) {
+      console.error("Dashboard doctor data fetch error:", e);
     }
   }
 

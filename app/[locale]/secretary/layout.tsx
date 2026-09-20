@@ -4,7 +4,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -35,55 +35,55 @@ const navItems = [
   {
     href: "dashboard",
     labelEn: "Dashboard",
-    labelAr: "ظ„ظˆطط© ط§ظ„طھطظƒظ…",
+    labelAr: "لوحة التحكم",
     icon: LayoutDashboard,
   },
   {
     href: "appointments",
     labelEn: "Appointments",
-    labelAr: "ط§ظ„ظ…ظˆط§ط¹ظٹط¯",
+    labelAr: "المواعيد",
     icon: CalendarCheck,
   },
   {
     href: "finance",
     labelEn: "Billing / Cashier",
-    labelAr: "ط§ظ„ط®ط²ظٹظ†ط© ظˆط§ظ„ظ…ط¯ظپظˆط¹ط§طھ",
+    labelAr: "الخزينة والمدفوعات",
     icon: DollarSign,
   },
   {
     href: "schedule",
     labelEn: "Schedule",
-    labelAr: "ط§ظ„ط¬ط¯ظˆظ„",
+    labelAr: "الجدول",
     icon: Calendar,
   },
   {
     href: "patients",
     labelEn: "Patients",
-    labelAr: "ط§ظ„ظ…ط±ط¶ظ‰",
+    labelAr: "المرضى",
     icon: Users,
   },
   {
     href: "reports",
     labelEn: "Reports",
-    labelAr: "ط§ظ„طھظ‚ط§ط±ظٹط±",
+    labelAr: "التقارير",
     icon: BarChart2,
   },
   {
     href: "whatsapp",
     labelEn: "WhatsApp",
-    labelAr: "ظˆط§طھط³ط§ط¨",
+    labelAr: "واتساب",
     icon: MessageCircle,
   },
   {
     href: "communications",
     labelEn: "Staff Chat & Comms",
-    labelAr: "ط§ظ„ظ…طط§ط¯ط«ط§طھ ظˆط§ظ„طھظˆط§طµظ„ ط§ظ„ط¯ط§ط®ظ„ظٹ",
+    labelAr: "المحادثات والتواصل الداخلي",
     icon: MessageSquare,
   },
   {
     href: "notifications",
     labelEn: "Notifications",
-    labelAr: "ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ",
+    labelAr: "الإشعارات",
     icon: Bell,
   },
 ];
@@ -105,8 +105,10 @@ export default function SecretaryLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const locale = pathname.split("/")[1] || "en";
+  const rawPathname = usePathname();
+  const pathname = rawPathname || "";
+  const params = useParams();
+  const locale = (params?.locale as string) || (pathname ? pathname.split("/")[1] : "en") || "en";
   const isRTL = locale === "ar";
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -152,7 +154,7 @@ export default function SecretaryLayout({
 
       toast.success(
         isRTL
-          ? "طھظ… ط¥ط±ط³ط§ظ„ ط§ظ„طھظ†ط¨ظٹظ‡ ط§ظ„ظ‡ط§ط¯ط¦ ظ„ظ„ط·ط¨ظٹط¨"
+          ? "تم إرسال التنبيه الهادئ للطبيب"
           : "Quiet note sent to Doctor screen"
       );
     }
@@ -231,7 +233,7 @@ export default function SecretaryLayout({
               <User size={16} />
               <span>
                 {isRTL
-                  ? "ط§ظ„ظ…ظ„ظپ ط§ظ„ط´ط®طµظٹ"
+                  ? "الملف الشخصي"
                   : "Profile"}
               </span>
             </Link>
@@ -278,12 +280,12 @@ export default function SecretaryLayout({
 
                   <span className="hidden sm:inline">
                     {isRTL
-                      ? "طھظ†ط¨ظٹظ‡ ظ‡ط§ط¯ط¦ ظ„ظ„ط·ط¨ظٹط¨"
+                      ? "تنبيه هادئ للطبيب"
                       : "Quiet Note to Doctor"}
                   </span>
 
                   <span className="sm:hidden">
-                    {isRTL ? "طھظ†ط¨ظٹظ‡" : "Note"}
+                    {isRTL ? "تنبيه" : "Note"}
                   </span>
                 </button>
               </div>
