@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
   DollarSign,
@@ -57,48 +57,6 @@ interface OutflowTransaction {
   notes?: string;
 }
 
-const initialPayments: PaymentRecord[] = [
-  { id: "APT-101", patientName: "Ahmed Hassan", patientNameAr: "أحمد حسن", doctorName: "Dr. Ahmed Hossam", type: "New Consultation", typeAr: "كشف جديد", date: "Today", time: "09:15 AM", totalDue: 500, amountPaid: 500, hasBooking: true },
-  { id: "APT-102", patientName: "Youssef Nabil", patientNameAr: "يوسف نبيل", doctorName: "Dr. Ahmed Hossam", type: "General Check-up", typeAr: "كشف عام", date: "Today", time: "09:40 AM", totalDue: 400, amountPaid: 400, hasBooking: true },
-  { id: "APT-103", patientName: "Sara Ibrahim", patientNameAr: "سارة إبراهيم", doctorName: "Dr. Ahmed Hossam", type: "Follow-up", typeAr: "إعادة واستشارة", date: "Today", time: "10:45 AM", totalDue: 450, amountPaid: 250, hasBooking: true },
-  { id: "APT-104", patientName: "Mohamed Ali", patientNameAr: "محمد علي", doctorName: "Dr. Ahmed Hossam", type: "Minor Procedure", typeAr: "إجراء جراحي وغيار", date: "Today", time: "11:15 AM", totalDue: 850, amountPaid: 850, hasBooking: true },
-  { id: "APT-105", patientName: "Fatima Omar", patientNameAr: "فاطمة عمر", doctorName: "Dr. Ahmed Hossam", type: "New Consultation", typeAr: "كشف جديد", date: "Today", time: "01:10 PM", totalDue: 500, amountPaid: 500, hasBooking: true },
-  { id: "APT-106", patientName: "Kareem Tarek", patientNameAr: "كريم طارق", doctorName: "Dr. Ahmed Hossam", type: "New Consultation", typeAr: "كشف جديد", date: "Today", time: "02:00 PM", totalDue: 500, amountPaid: 0, hasBooking: true },
-];
-
-const initialOutflows: OutflowTransaction[] = [
-  {
-    id: "EXP-SEC-01",
-    kind: "OUTFLOW",
-    category: "UTILITIES",
-    categoryNameEn: "Electricity & Utilities",
-    categoryNameAr: "الكهرباء والمرافق",
-    titleEn: "Clinic Electricity Smart Card Recharge",
-    titleAr: "شحن كارت عداد الكهرباء الذكي",
-    amount: 400,
-    time: "08:30 AM",
-    date: "Today",
-    paymentMethod: "CASH",
-    paidTo: "South Cairo Electricity Store",
-    receiptNo: "ELEC-9921",
-  },
-  {
-    id: "EXP-SEC-02",
-    kind: "OUTFLOW",
-    category: "UTILITIES",
-    categoryNameEn: "Electricity & Utilities",
-    categoryNameAr: "الكهرباء والمرافق",
-    titleEn: "Water Utility Bill",
-    titleAr: "فواتير المياه",
-    amount: 120,
-    time: "09:00 AM",
-    date: "Today",
-    paymentMethod: "CASH",
-    paidTo: "Cairo Water Authority",
-    receiptNo: "WTR-3321",
-  },
-];
-
 type FinancialOperation = { kind: "INFLOW" } & PaymentRecord | OutflowTransaction;
 
 const isFullyPaid = (op: FinancialOperation): boolean =>
@@ -109,8 +67,9 @@ export default function SecretaryFinancePage() {
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [payments, setPayments] = useState<PaymentRecord[]>(initialPayments);
-  const [outflows, setOutflows] = useState<OutflowTransaction[]>(initialOutflows);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [outflows, setOutflows] = useState<OutflowTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [filterType, setFilterType] = useState<"ALL" | "PATIENTS" | "OUTFLOW" | "OUTSTANDING" | "FULLY_PAID" | "UNPAID">("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -118,6 +77,61 @@ export default function SecretaryFinancePage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [collectAccount, setCollectAccount] = useState<PaymentAccount | null>(null);
   const [isCollectModalOpen, setIsCollectModalOpen] = useState(false);
+
+  // ---- Fetch real live financial data from backend ----
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFinanceData() {
+      try {
+        setLoading(true);
+        const [txRes, expRes] = await Promise.all([
+          fetch("/api/finance/transactions"),
+          fetch("/api/finance/expenses"),
+        ]);
+
+        const [txData, expData] = await Promise.all([
+          txRes.json(),
+          expRes.json(),
+        ]);
+
+        if (isMounted) {
+          if (txData.success && Array.isArray(txData.transactions)) {
+            setPayments(txData.transactions);
+          }
+          if (expData.success && Array.isArray(expData.expenses)) {
+            const mappedOutflows: OutflowTransaction[] = expData.expenses.map((e: any) => ({
+              id: e.id,
+              kind: "OUTFLOW",
+              category: e.category,
+              categoryNameEn: e.categoryNameEn || e.category,
+              categoryNameAr: e.categoryNameAr || e.category,
+              titleEn: e.titleEn || e.title,
+              titleAr: e.titleAr || e.title,
+              amount: e.amount,
+              time: e.time || "12:00 PM",
+              date: e.date || "Today",
+              paymentMethod: e.paymentMethod || "CASH",
+              paidTo: e.paidTo,
+              receiptNo: e.receiptNo,
+              notes: e.notes,
+            }));
+            setOutflows(mappedOutflows);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load secretary finance data:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadFinanceData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // ---- Secretary metrics (correct clinic logic — NO profit reveals) ----
   const totalCollected = useMemo(() => payments.reduce((s, p) => s + p.amountPaid, 0), [payments]);
@@ -138,7 +152,7 @@ export default function SecretaryFinancePage() {
   const totalExpenses = useMemo(() => outflows.reduce((s, e) => s + e.amount, 0), [outflows]);
 
   // ---- Handlers ----
-  const handleCollect = (id: string, amount: number, method: PaymentAccount["method"]) => {
+  const handleCollect = async (id: string, amount: number, method: PaymentAccount["method"]) => {
     setPayments((prev) =>
       prev.map((p) => {
         if (p.id !== id) return p;
@@ -146,6 +160,21 @@ export default function SecretaryFinancePage() {
         return { ...p, amountPaid: newPaid };
       })
     );
+
+    try {
+      await fetch("/api/finance/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointmentId: id,
+          amount,
+          paymentMethod: method,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to record collection in DB:", err);
+    }
+
     const patient = payments.find((p) => p.id === id);
     toast.success(
       isRTL
@@ -154,14 +183,39 @@ export default function SecretaryFinancePage() {
     );
   };
 
-  const handleSaveExpense = (expenseData: Omit<SecretaryExpenseItem, "id" | "time">) => {
+  const handleSaveExpense = async (expenseData: Omit<SecretaryExpenseItem, "id" | "time">) => {
+    const tempId = `EXP-SEC-${Date.now().toString().slice(-4)}`;
     const newExpense: OutflowTransaction = {
       ...expenseData,
-      id: `EXP-SEC-${Date.now().toString().slice(-4)}`,
+      id: tempId,
       kind: "OUTFLOW",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
     setOutflows((prev) => [newExpense, ...prev]);
+
+    try {
+      const res = await fetch("/api/finance/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...expenseData,
+          category: expenseData.category,
+          amount: expenseData.amount,
+          paymentMethod: expenseData.paymentMethod,
+          paidTo: expenseData.paidTo,
+          receiptNo: expenseData.receiptNo,
+          notes: expenseData.notes,
+          recordedByRole: "secretary",
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.expense?.id) {
+        setOutflows((prev) => prev.map((e) => e.id === tempId ? { ...e, id: data.expense.id } : e));
+      }
+    } catch (err) {
+      console.error("Failed to save expense in DB:", err);
+    }
+
     toast.success(
       isRTL
         ? `✅ تم تسجيل مصروف ${expenseData.amount} ج.م`
@@ -169,8 +223,15 @@ export default function SecretaryFinancePage() {
     );
   };
 
-  const handleDeleteOutflow = (id: string) => {
+  const handleDeleteOutflow = async (id: string) => {
     setOutflows((prev) => prev.filter((e) => e.id !== id));
+    try {
+      await fetch(`/api/finance/expenses?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.error("Failed to delete expense in DB:", err);
+    }
     toast.info(isRTL ? "🗑️ تم حذف المصروف" : "🗑️ Expense deleted");
   };
 

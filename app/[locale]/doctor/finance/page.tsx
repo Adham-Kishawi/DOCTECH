@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
   DollarSign,
@@ -55,206 +55,30 @@ import { RevenueModal } from "@/components/doctor/finance/RevenueModal";
 import { ProfitLossStatement } from "@/components/doctor/finance/ProfitLossStatement";
 import type { ExpenseItem, RevenueItem, MonthFinancialRecord } from "@/app/api/doctor/finance/route";
 
-// Initial seed data for multiple months
-const initialMonthsData: Record<string, MonthFinancialRecord> = {
-  "2026-09": {
-    monthKey: "2026-09",
-    monthNameEn: "September 2026",
-    monthNameAr: "سبتمبر ٢٠٢٦",
-    grossRevenue: 78500,
-    totalExpenses: 32400,
-    netProfit: 46100,
-    profitMargin: 58.7,
-    totalVisits: 164,
-    avgPerPatient: 478,
-    revenueGrowthMoM: 14.2,
-    expensesGrowthMoM: -2.1,
-    weeklyTrend: [
-      { week: "Week 1", weekAr: "الأسبوع ١", revenue: 19200, expenses: 14800, netProfit: 4400 },
-      { week: "Week 2", weekAr: "الأسبوع ٢", revenue: 21400, expenses: 5200, netProfit: 16200 },
-      { week: "Week 3", weekAr: "الأسبوع ٣", revenue: 18900, expenses: 6100, netProfit: 12800 },
-      { week: "Week 4", weekAr: "الأسبوع ٤", revenue: 19000, expenses: 6300, netProfit: 12700 },
-    ],
-    expenses: [
-      {
-        id: "EXP-09-01",
-        category: "SALARIES",
-        categoryNameEn: "Salaries & Staff",
-        categoryNameAr: "المرتبات والأجور",
-        titleEn: "Staff Payroll (Receptionist, Nurse & Assistant)",
-        titleAr: "رواتب الفريق الطبي والإداري (سكرتيرة، ممرضة، ومساعد)",
-        amount: 14500,
-        date: "2026-09-01",
-        paymentMethod: "BANK_TRANSFER",
-        paidTo: "Clinic Staff (سارة ومريم ومحمود)",
-        notes: "Monthly regular staff compensation",
-        isRecurring: true,
-      },
-      {
-        id: "EXP-09-02",
-        category: "RENT",
-        categoryNameEn: "Clinic Rent",
-        categoryNameAr: "إيجار العيادة والمقر",
-        titleEn: "Clinic Premises Monthly Lease",
-        titleAr: "إيجار مقر العيادة الشهري (برج النور)",
-        amount: 8000,
-        date: "2026-09-01",
-        paymentMethod: "BANK_TRANSFER",
-        paidTo: "Al-Noor Tower Management",
-        notes: "Unit 402 - Floor 4",
-        isRecurring: true,
-      },
-      {
-        id: "EXP-09-03",
-        category: "UTILITIES",
-        categoryNameEn: "Electricity & Utilities",
-        categoryNameAr: "الكهرباء والمرافق",
-        titleEn: "Electricity Bill (Air Conditioners & Lighting)",
-        titleAr: "فاتورة الكهرباء (التكييفات والإنارة وأجهزة الفحص)",
-        amount: 2450,
-        date: "2026-09-05",
-        paymentMethod: "CASH",
-        paidTo: "South Cairo Electricity Co.",
-        notes: "Peak summer billing",
-        isRecurring: true,
-      },
-      {
-        id: "EXP-09-04",
-        category: "UTILITIES",
-        categoryNameEn: "Electricity & Utilities",
-        categoryNameAr: "الكهرباء والمرافق",
-        titleEn: "High-Speed Fiber Internet & Phone",
-        titleAr: "فاتورة الإنترنت فائق السرعة والهاتف الأرضي",
-        amount: 650,
-        date: "2026-09-08",
-        paymentMethod: "CARD",
-        paidTo: "WE Telecom Egypt",
-        notes: "200 Mbps Static IP Line",
-        isRecurring: true,
-      },
-      {
-        id: "EXP-09-05",
-        category: "SUPPLIES",
-        categoryNameEn: "Medical Supplies",
-        categoryNameAr: "المستلزمات الطبية",
-        titleEn: "Sterile Gloves, Syringes & Antiseptics",
-        titleAr: "قفازات معقمة، سرنجات، مطهرات، وشاش جراحي",
-        amount: 3200,
-        date: "2026-09-10",
-        paymentMethod: "CASH",
-        paidTo: "MedPharma Supplies Co.",
-        notes: "Monthly bulk order batch #44",
-        isRecurring: false,
-      },
-      {
-        id: "EXP-09-06",
-        category: "MAINTENANCE",
-        categoryNameEn: "Maintenance & Tech",
-        categoryNameAr: "الصيانة والبرمجيات",
-        titleEn: "Ultrasound Device Calibration & Autoclave Servicing",
-        titleAr: "معايرة دورية لجهاز السونار وصيانة الأوتوكلاف",
-        amount: 1500,
-        date: "2026-09-14",
-        paymentMethod: "CASH",
-        paidTo: "BioTech Maintenance Eng.",
-        notes: "Passed 6-month certification",
-        isRecurring: false,
-      },
-      {
-        id: "EXP-09-07",
-        category: "MARKETING",
-        categoryNameEn: "Marketing & Ads",
-        categoryNameAr: "التسويق والإعلانات",
-        titleEn: "Meta Sponsored Campaigns (Facebook & Instagram)",
-        titleAr: "حملات إعلانية ممولة على فيسبوك وانستغرام",
-        amount: 1200,
-        date: "2026-09-15",
-        paymentMethod: "CARD",
-        paidTo: "Meta Platforms",
-        notes: "Awareness & online booking campaign",
-        isRecurring: true,
-      },
-      {
-        id: "EXP-09-08",
-        category: "MISC",
-        categoryNameEn: "Hospitality & Cleaning",
-        categoryNameAr: "نثريات وضيافة ونظافة",
-        titleEn: "Patient Hospitality (Coffee/Water) & Cleaning Supplies",
-        titleAr: "ضيافة المرضى (شاي/قهوة/مياه) ومواد نظافة دورية",
-        amount: 900,
-        date: "2026-09-18",
-        paymentMethod: "CASH",
-        paidTo: "Petty Cash (العهدة النقدية)",
-        notes: "Weekly replenishment",
-        isRecurring: false,
-      },
-    ],
-    revenues: [
-      { id: "REV-101", type: "CONSULTATION", typeNameEn: "New Consultation", typeNameAr: "كشف جديد", patientName: "Ahmed Hassan", patientNameAr: "أحمد حسن", amount: 500, date: "2026-09-22", time: "09:15 AM", paymentMethod: "CASH", status: "PAID" },
-      { id: "REV-102", type: "FOLLOW_UP", typeNameEn: "Follow-up Check", typeNameAr: "إعادة واستشارة", patientName: "Sara Ibrahim", patientNameAr: "سارة إبراهيم", amount: 250, date: "2026-09-22", time: "10:00 AM", paymentMethod: "CARD", status: "PAID" },
-      { id: "REV-103", type: "PROCEDURE", typeNameEn: "Minor Surgical Wound Care", typeNameAr: "غيار جراحي وخياطة صغرى", patientName: "Mohamed Ali", patientNameAr: "محمد علي", amount: 850, date: "2026-09-22", time: "11:30 AM", paymentMethod: "BANK_TRANSFER", status: "PAID" },
-      { id: "REV-104", type: "CONSULTATION", typeNameEn: "New Consultation", typeNameAr: "كشف جديد", patientName: "Fatima Omar", patientNameAr: "فاطمة عمر", amount: 500, date: "2026-09-22", time: "01:00 PM", paymentMethod: "CASH", status: "PAID" },
-      { id: "REV-105", type: "REPORT", typeNameEn: "Official Medical Report & Review", typeNameAr: "تقرير طبي معتمد وفحص شامل", patientName: "Kareem Tarek", patientNameAr: "كريم طارق", amount: 400, date: "2026-09-22", time: "02:15 PM", paymentMethod: "CASH", status: "PAID" },
-      { id: "REV-106", type: "CONSULTATION", typeNameEn: "New Consultation", typeNameAr: "كشف جديد", patientName: "Nouran Mahmoud", patientNameAr: "نوران محمود", amount: 500, date: "2026-09-22", time: "03:00 PM", paymentMethod: "CARD", status: "PAID" },
-      { id: "REV-107", type: "FOLLOW_UP", typeNameEn: "Follow-up Check", typeNameAr: "إعادة ومتابعة", patientName: "Hany Youssef", patientNameAr: "هاني يوسف", amount: 250, date: "2026-09-22", time: "03:45 PM", paymentMethod: "CASH", status: "PAID" },
-    ],
-  },
-  "2026-08": {
-    monthKey: "2026-08",
-    monthNameEn: "August 2026",
-    monthNameAr: "أغسطس ٢٠٢٦",
-    grossRevenue: 68700,
-    totalExpenses: 33100,
-    netProfit: 35600,
-    profitMargin: 51.8,
-    totalVisits: 148,
-    avgPerPatient: 464,
-    revenueGrowthMoM: 9.8,
-    expensesGrowthMoM: 4.2,
-    weeklyTrend: [
-      { week: "Week 1", weekAr: "الأسبوع ١", revenue: 16500, expenses: 15200, netProfit: 1300 },
-      { week: "Week 2", weekAr: "الأسبوع ٢", revenue: 17800, expenses: 5800, netProfit: 12000 },
-      { week: "Week 3", weekAr: "الأسبوع ٣", revenue: 17200, expenses: 6200, netProfit: 11000 },
-      { week: "Week 4", weekAr: "الأسبوع ٤", revenue: 17200, expenses: 5900, netProfit: 11300 },
-    ],
-    expenses: [
-      { id: "EXP-08-01", category: "SALARIES", categoryNameEn: "Salaries & Staff", categoryNameAr: "المرتبات والأجور", titleEn: "Staff Payroll", titleAr: "رواتب الفريق الطبي والإداري", amount: 14500, date: "2026-08-01", paymentMethod: "BANK_TRANSFER", isRecurring: true },
-      { id: "EXP-08-02", category: "RENT", categoryNameEn: "Clinic Rent", categoryNameAr: "إيجار العيادة والمقر", titleEn: "Clinic Premises Monthly Lease", titleAr: "إيجار مقر العيادة الشهري", amount: 8000, date: "2026-08-01", paymentMethod: "BANK_TRANSFER", isRecurring: true },
-      { id: "EXP-08-03", category: "UTILITIES", categoryNameEn: "Electricity & Utilities", categoryNameAr: "الكهرباء والمرافق", titleEn: "Electricity Bill", titleAr: "فاتورة الكهرباء", amount: 2800, date: "2026-08-06", paymentMethod: "CASH", isRecurring: true },
-      { id: "EXP-08-04", category: "SUPPLIES", categoryNameEn: "Medical Supplies", categoryNameAr: "المستلزمات الطبية", titleEn: "Medical Consumables & Gauze", titleAr: "شاش ومستهلكات طبية", amount: 4100, date: "2026-08-11", paymentMethod: "CASH", isRecurring: false },
-      { id: "EXP-08-05", category: "MARKETING", categoryNameEn: "Marketing & Ads", categoryNameAr: "التسويق والإعلانات", titleEn: "Sponsored Ads & Printouts", titleAr: "إعلانات ممولة ومطبوعات كروت", amount: 1900, date: "2026-08-15", paymentMethod: "CARD", isRecurring: false },
-      { id: "EXP-08-06", category: "MISC", categoryNameEn: "Hospitality & Cleaning", categoryNameAr: "نثريات وضيافة ونظافة", titleEn: "Clinic Hospitality & Cleaners", titleAr: "ضيافة العيادة ومنظفات", amount: 1800, date: "2026-08-20", paymentMethod: "CASH", isRecurring: false },
-    ],
+// Default empty month record for clean slate
+function createEmptyMonthRecord(monthKey: string): MonthFinancialRecord {
+  return {
+    monthKey,
+    monthNameEn: monthKey,
+    monthNameAr: monthKey,
+    grossRevenue: 0,
+    totalExpenses: 0,
+    netProfit: 0,
+    profitMargin: 0,
+    totalVisits: 0,
+    avgPerPatient: 0,
+    revenueGrowthMoM: 0,
+    expensesGrowthMoM: 0,
+    expenses: [],
     revenues: [],
-  },
-  "2026-07": {
-    monthKey: "2026-07",
-    monthNameEn: "July 2026",
-    monthNameAr: "يوليو ٢٠٢٦",
-    grossRevenue: 62500,
-    totalExpenses: 31800,
-    netProfit: 30700,
-    profitMargin: 49.1,
-    totalVisits: 135,
-    avgPerPatient: 462,
-    revenueGrowthMoM: 5.4,
-    expensesGrowthMoM: 1.8,
     weeklyTrend: [
-      { week: "Week 1", weekAr: "الأسبوع ١", revenue: 15200, expenses: 14500, netProfit: 700 },
-      { week: "Week 2", weekAr: "الأسبوع ٢", revenue: 16100, expenses: 5600, netProfit: 10500 },
-      { week: "Week 3", weekAr: "الأسبوع ٣", revenue: 15400, expenses: 5800, netProfit: 9600 },
-      { week: "Week 4", weekAr: "الأسبوع ٤", revenue: 15800, expenses: 5900, netProfit: 9900 },
+      { week: "Week 1", weekAr: "الأسبوع ١", revenue: 0, expenses: 0, netProfit: 0 },
+      { week: "Week 2", weekAr: "الأسبوع ٢", revenue: 0, expenses: 0, netProfit: 0 },
+      { week: "Week 3", weekAr: "الأسبوع ٣", revenue: 0, expenses: 0, netProfit: 0 },
+      { week: "Week 4", weekAr: "الأسبوع ٤", revenue: 0, expenses: 0, netProfit: 0 },
     ],
-    expenses: [
-      { id: "EXP-07-01", category: "SALARIES", categoryNameEn: "Salaries & Staff", categoryNameAr: "المرتبات والأجور", titleEn: "Staff Payroll", titleAr: "رواتب الفريق الطبي والإداري", amount: 14000, date: "2026-07-01", paymentMethod: "BANK_TRANSFER", isRecurring: true },
-      { id: "EXP-07-02", category: "RENT", categoryNameEn: "Clinic Rent", categoryNameAr: "إيجار العيادة والمقر", titleEn: "Clinic Premises Monthly Lease", titleAr: "إيجار مقر العيادة الشهري", amount: 8000, date: "2026-07-01", paymentMethod: "BANK_TRANSFER", isRecurring: true },
-      { id: "EXP-07-03", category: "UTILITIES", categoryNameEn: "Electricity & Utilities", categoryNameAr: "الكهرباء والمرافق", titleEn: "Electricity & Water Bill", titleAr: "فاتورة الكهرباء والمياه", amount: 2600, date: "2026-07-05", paymentMethod: "CASH", isRecurring: true },
-      { id: "EXP-07-04", category: "SUPPLIES", categoryNameEn: "Medical Supplies", categoryNameAr: "المستلزمات الطبية", titleEn: "Medical Supplies Batch", titleAr: "مستلزمات طبية وجراحية", amount: 4500, date: "2026-07-12", paymentMethod: "CASH", isRecurring: false },
-      { id: "EXP-07-05", category: "MISC", categoryNameEn: "Hospitality & Cleaning", categoryNameAr: "نثريات وضيافة ونظافة", titleEn: "Petty Cash & Maintenance", titleAr: "نثريات وضيافة وصيانة خفيفة", amount: 2700, date: "2026-07-19", paymentMethod: "CASH", isRecurring: false },
-    ],
-    revenues: [],
-  },
-};
+  };
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   SALARIES: "#3B82F6", // Blue
@@ -272,11 +96,14 @@ export default function DoctorFinancePage() {
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [selectedMonth, setSelectedMonth] = useState<string>("2026-09");
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
   const [activeTab, setActiveTab] = useState<"overview" | "expenses" | "revenues" | "pnl">("overview");
 
-  // Multi-month local database state
-  const [monthsData, setMonthsData] = useState<Record<string, MonthFinancialRecord>>(initialMonthsData);
+  // Multi-month database state
+  const [monthsData, setMonthsData] = useState<Record<string, MonthFinancialRecord>>({});
+  const [availableMonths, setAvailableMonths] = useState<{ key: string; nameEn: string; nameAr: string }[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Modal states
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
@@ -288,9 +115,44 @@ export default function DoctorFinancePage() {
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>("all");
   const [expenseMethodFilter, setExpenseMethodFilter] = useState<string>("all");
 
+  // Fetch real financial records for selected month
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchMonthData() {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/doctor/finance?month=${encodeURIComponent(selectedMonth)}`);
+        const data = await res.json();
+
+        if (isMounted && data.success) {
+          if (data.currentMonth) {
+            setMonthsData((prev) => ({
+              ...prev,
+              [selectedMonth]: data.currentMonth,
+            }));
+          }
+          if (Array.isArray(data.allMonths)) {
+            setAvailableMonths(data.allMonths);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load doctor finance records:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    fetchMonthData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedMonth]);
+
   // Current month active record
   const currentRecord = useMemo(() => {
-    return monthsData[selectedMonth] || monthsData["2026-09"];
+    return monthsData[selectedMonth] || createEmptyMonthRecord(selectedMonth);
   }, [monthsData, selectedMonth]);
 
   // Recalculate dynamic totals for the current month
@@ -352,23 +214,23 @@ export default function DoctorFinancePage() {
   }, [categoryBreakdown, isRTL]);
 
   // Handlers for adding/editing/deleting expenses
-  const handleSaveExpense = (expenseData: Omit<ExpenseItem, "id">) => {
+  const handleSaveExpense = async (expenseData: Omit<ExpenseItem, "id">) => {
+    const tempId = editingExpense ? editingExpense.id : `EXP-${selectedMonth.split("-")[1] || "01"}-${Date.now().toString().slice(-4)}`;
+
     setMonthsData((prev) => {
-      const target = prev[selectedMonth] || prev["2026-09"];
+      const target = prev[selectedMonth] || createEmptyMonthRecord(selectedMonth);
       let updatedExpenses: ExpenseItem[];
 
       if (editingExpense) {
         updatedExpenses = target.expenses.map((e) =>
           e.id === editingExpense.id ? { ...expenseData, id: editingExpense.id } : e
         );
-        toast.success(isRTL ? "✅ تم تعديل المصروف بنجاح" : "✅ Expense updated successfully!");
       } else {
         const newExpense: ExpenseItem = {
           ...expenseData,
-          id: `EXP-${selectedMonth.split("-")[1]}-${Date.now().toString().slice(-4)}`,
+          id: tempId,
         };
         updatedExpenses = [newExpense, ...target.expenses];
-        toast.success(isRTL ? "✅ تم إضافة المصروف بنجاح وتحديث الحسابات" : "✅ Expense recorded successfully!");
       }
 
       return {
@@ -380,12 +242,36 @@ export default function DoctorFinancePage() {
       };
     });
 
+    try {
+      await fetch("/api/finance/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...expenseData,
+          category: expenseData.category,
+          amount: expenseData.amount,
+          paymentMethod: expenseData.paymentMethod,
+          paidTo: expenseData.paidTo,
+          notes: expenseData.notes,
+          recordedByRole: "doctor",
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to save doctor expense in DB:", err);
+    }
+
+    toast.success(
+      editingExpense
+        ? (isRTL ? "✅ تم تعديل المصروف بنجاح" : "✅ Expense updated successfully!")
+        : (isRTL ? "✅ تم إضافة المصروف بنجاح وتحديث الحسابات" : "✅ Expense recorded successfully!")
+    );
+
     setEditingExpense(null);
   };
 
-  const handleDeleteExpense = (id: string) => {
+  const handleDeleteExpense = async (id: string) => {
     setMonthsData((prev) => {
-      const target = prev[selectedMonth] || prev["2026-09"];
+      const target = prev[selectedMonth] || createEmptyMonthRecord(selectedMonth);
       return {
         ...prev,
         [selectedMonth]: {
@@ -394,16 +280,27 @@ export default function DoctorFinancePage() {
         },
       };
     });
+
+    try {
+      await fetch(`/api/finance/expenses?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.error("Failed to delete doctor expense in DB:", err);
+    }
+
     toast.info(isRTL ? "🗑️ تم حذف المصروف وإعادة احتساب الأرباح" : "🗑️ Expense deleted and net profit recalculated.");
   };
 
-  const handleSaveRevenue = (revenueData: Omit<RevenueItem, "id">) => {
+  const handleSaveRevenue = async (revenueData: Omit<RevenueItem, "id">) => {
+    const tempId = `REV-${Date.now().toString().slice(-4)}`;
+    const newRev: RevenueItem = {
+      ...revenueData,
+      id: tempId,
+    };
+
     setMonthsData((prev) => {
-      const target = prev[selectedMonth] || prev["2026-09"];
-      const newRev: RevenueItem = {
-        ...revenueData,
-        id: `REV-${Date.now().toString().slice(-4)}`,
-      };
+      const target = prev[selectedMonth] || createEmptyMonthRecord(selectedMonth);
       return {
         ...prev,
         [selectedMonth]: {
@@ -413,6 +310,21 @@ export default function DoctorFinancePage() {
         },
       };
     });
+
+    try {
+      await fetch("/api/finance/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: revenueData.type,
+          amount: revenueData.amount,
+          paymentMethod: revenueData.paymentMethod,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to save doctor revenue in DB:", err);
+    }
+
     toast.success(isRTL ? "💰 تم تسجيل الإيراد بنجاح" : "💰 Revenue logged successfully!");
   };
 
@@ -427,8 +339,7 @@ export default function DoctorFinancePage() {
         e.titleEn.toLowerCase().includes(searchLower) ||
         e.titleAr.toLowerCase().includes(searchLower) ||
         (e.paidTo && e.paidTo.toLowerCase().includes(searchLower)) ||
-        (e.notes && e.notes.toLowerCase().includes(searchLower)) ||
-        e.amount.toString().includes(searchLower);
+        (e.notes && e.notes.toLowerCase().includes(searchLower));
 
       return matchesCat && matchesMethod && matchesSearch;
     });
@@ -469,9 +380,15 @@ export default function DoctorFinancePage() {
               aria-label={isRTL ? "اختر الشهر" : "Select Month"}
               className="appearance-none bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold py-2.5 px-4 pe-9 rounded-2xl border border-slate-200 dark:border-slate-700 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
-              <option value="2026-09">{isRTL ? "سبتمبر ٢٠٢٦ (الشهر الحالي)" : "September 2026 (Current)"}</option>
-              <option value="2026-08">{isRTL ? "أغسطس ٢٠٢٦" : "August 2026"}</option>
-              <option value="2026-07">{isRTL ? "يوليو ٢٠٢٦" : "July 2026"}</option>
+              {availableMonths.length > 0 ? (
+                availableMonths.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {isRTL ? m.nameAr : m.nameEn}
+                  </option>
+                ))
+              ) : (
+                <option value={selectedMonth}>{selectedMonth}</option>
+              )}
             </select>
             <Calendar size={14} className="absolute top-1/2 -translate-y-1/2 end-3 text-slate-400 pointer-events-none" />
           </div>

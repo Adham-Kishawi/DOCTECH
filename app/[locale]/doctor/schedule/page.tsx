@@ -474,7 +474,7 @@ export default function DoctorSchedulePage() {
                     </div>
 
                     <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
-                      {doctor.name}
+                      {doctor?.name || ""}
                     </span>
                   </div>
 
