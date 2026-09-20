@@ -4,7 +4,21 @@ import { routing } from "./lib/i18n/routing";
 
 const intlMiddleware = createMiddleware(routing);
 
-console.log("DEBUG CLERK KEY:", JSON.stringify(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY), "TYPE:", typeof process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
+if (process.env.CLERK_SECRET_KEY) {
+  process.env.CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
 
 export default clerkMiddleware((_, req) => {
   if (req.nextUrl.pathname.startsWith("/api")) {
