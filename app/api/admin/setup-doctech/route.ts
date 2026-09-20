@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { PrismaClient } from "@prisma/client";
+import { Client } from "pg";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +24,27 @@ export async function GET(request: Request) {
     expenses: [],
   };
 
-  // 1. Create missing tables using Prisma raw queries
-  const prisma = new PrismaClient();
+  // 1. Create missing tables using pg Client
+  const dbUrl =
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL;
+
+  let pgClient: Client | null = null;
+  if (dbUrl) {
+    try {
+      pgClient = new Client({
+        connectionString: dbUrl,
+        ssl: { rejectUnauthorized: false },
+      });
+      await pgClient.connect();
+    } catch (connErr: any) {
+      console.error("PG connect error:", connErr);
+      results.pgConnectError = connErr.message;
+    }
+  } else {
+    results.pgConnectError = "No database URL found in environment";
+  }
 
   const ddlStatements = [
     `CREATE TABLE IF NOT EXISTS "reports" (
@@ -121,24 +140,26 @@ export async function GET(request: Request) {
     );`
   ];
 
-  try {
-    for (const sql of ddlStatements) {
-      await prisma.$executeRawUnsafe(sql);
+  if (pgClient) {
+    try {
+      for (const sql of ddlStatements) {
+        await pgClient.query(sql);
+      }
+      results.tablesCreated = [
+        "reports",
+        "expenses",
+        "payment_transactions",
+        "patient_attachments",
+        "notifications",
+        "whatsapp_conversations",
+        "whatsapp_messages",
+      ];
+    } catch (err: any) {
+      console.error("PG DDL error:", err);
+      results.tableError = err.message;
+    } finally {
+      await pgClient.end().catch(() => {});
     }
-    results.tablesCreated = [
-      "reports",
-      "expenses",
-      "payment_transactions",
-      "patient_attachments",
-      "notifications",
-      "whatsapp_conversations",
-      "whatsapp_messages"
-    ];
-  } catch (err: any) {
-    console.error("Prisma DDL error:", err);
-    results.tableError = err.message;
-  } finally {
-    await prisma.$disconnect();
   }
 
   // 2. Create or sync Clerk Doctor Account: doctech@gmail.com
