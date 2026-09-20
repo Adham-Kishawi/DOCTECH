@@ -40,6 +40,8 @@ export const metadata: Metadata = {
   },
 };
 
+const publishableKey = (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "").replace(/^["'\s]+|["'\s]+$/g, "");
+
 export default function RootLayout({
   children,
 }: {
@@ -53,7 +55,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen antialiased bg-[#0B131E] text-[#F8FAFC]">
-        <ClerkProvider>
+        <ClerkProvider publishableKey={publishableKey || undefined}>
           {children}
         </ClerkProvider>
       </body>
