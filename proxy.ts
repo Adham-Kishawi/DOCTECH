@@ -4,22 +4,13 @@ import { routing } from "./lib/i18n/routing";
 
 const intlMiddleware = createMiddleware(routing);
 
-const publishableKey = (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "").replace(/^["'\s]+|["'\s]+$/g, "");
-const secretKey = (process.env.CLERK_SECRET_KEY || "").replace(/^["'\s]+|["'\s]+$/g, "");
-
-export default clerkMiddleware(
-  (_, req) => {
-    if (req.nextUrl.pathname.startsWith("/api")) {
-      return;
-    }
-
-    return intlMiddleware(req);
-  },
-  {
-    publishableKey: publishableKey || undefined,
-    secretKey: secretKey || undefined,
+export default clerkMiddleware((_, req) => {
+  if (req.nextUrl.pathname.startsWith("/api")) {
+    return;
   }
-);
+
+  return intlMiddleware(req);
+});
 
 export const config = {
   matcher: [
