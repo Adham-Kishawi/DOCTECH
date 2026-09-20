@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useAuth, useSignIn } from "@clerk/nextjs";
+import { useAuth, useSignIn, useClerk, useUser } from "@clerk/nextjs";
 import {
   Lock,
   Mail,
@@ -13,6 +13,8 @@ import {
   KeyRound,
   RefreshCw,
   ArrowLeft,
+  LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,6 +24,8 @@ export default function SignInPage() {
 
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { signIn } = useSignIn();
+  const clerk = useClerk();
+  const { user: clerkUser } = useUser();
 
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
@@ -29,7 +33,8 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(false);
 
   // 2FA / Verification code state (if needed)
   const [step, setStep] = useState<"credentials" | "mfa">("credentials");
@@ -75,13 +80,13 @@ export default function SignInPage() {
     }
   };
 
-  // If the user is already signed in, redirect them
+  // If the user is already signed in, try redirecting once
   useEffect(() => {
     if (!authLoaded || !isSignedIn) return;
 
-    setLoading(true);
+    setCheckingSession(true);
     redirectSignedInUser().finally(() => {
-      setLoading(false);
+      setCheckingSession(false);
     });
   }, [authLoaded, isSignedIn]);
 
@@ -104,7 +109,7 @@ export default function SignInPage() {
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       // 1. First attempt: Direct secure token sign-in (eliminates 2FA roadblocks & session errors)
@@ -201,7 +206,7 @@ export default function SignInPage() {
             : "Invalid email or password")
       );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -209,7 +214,7 @@ export default function SignInPage() {
     e.preventDefault();
     if (!signIn || !verificationCode.trim()) return;
 
-    setLoading(true);
+    setSubmitting(true);
     try {
       const { error } = await signIn.mfa.verifyEmailCode({
         code: verificationCode.trim(),
@@ -235,7 +240,7 @@ export default function SignInPage() {
           (isRTL ? "تعذر التحقق من الرمز" : "Failed to verify code")
       );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -265,6 +270,17 @@ export default function SignInPage() {
     setStep("credentials");
   };
 
+  const handleSignOut = async () => {
+    try {
+      await clerk.signOut();
+      toast.success(isRTL ? "تم تسجيل الخروج بنجاح" : "Signed out successfully");
+      setEmail("");
+      setPassword("");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to sign out");
+    }
+  };
+
   return (
     <div className="w-full relative">
       {/* Ambient background glow behind card */}
@@ -273,7 +289,7 @@ export default function SignInPage() {
       {/* Main Stylish Card Container */}
       <div className="relative w-full bg-white/95 dark:bg-[#111C2A]/90 backdrop-blur-2xl border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-6 sm:p-9 shadow-2xl shadow-blue-950/10 dark:shadow-black/60 transition-all">
         {/* Header with Icon */}
-        <div className="text-center mb-7">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 text-[#3368A0] dark:text-[#4B85C5] mb-3.5 shadow-inner">
             {step === "credentials" ? (
               <Lock size={22} className="text-[#3368A0] dark:text-[#4B85C5]" />
@@ -302,6 +318,42 @@ export default function SignInPage() {
                 : `Enter the code sent to: ${email}`}
           </p>
         </div>
+
+        {/* If already signed in, show a helper banner */}
+        {isSignedIn && (
+          <div className="mb-5 p-3 rounded-2xl bg-blue-50/90 dark:bg-blue-950/50 border border-blue-200/80 dark:border-blue-900/60 text-xs flex flex-col sm:flex-row items-center justify-between gap-2.5 transition-all">
+            <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200 font-medium truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="truncate">
+                {isRTL ? "أنت مسجل حالياً كـ:" : "Signed in as:"}{" "}
+                <strong>
+                  {clerkUser?.primaryEmailAddress?.emailAddress || clerkUser?.fullName || "Active User"}
+                </strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => redirectSignedInUser()}
+                disabled={checkingSession}
+                className="px-3 py-1.5 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+              >
+                <LayoutDashboard size={13} />
+                <span>{isRTL ? "لوحة التحكم" : "Dashboard"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="px-3 py-1.5 rounded-xl bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <LogOut size={13} />
+                <span>{isRTL ? "خروج" : "Sign Out"}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {step === "credentials" ? (
           /* Step 1: Main Login Form */
@@ -376,11 +428,11 @@ export default function SignInPage() {
             {/* Sign In Button */}
             <button
               type="submit"
-              disabled={loading || !authLoaded || isSignedIn}
+              disabled={submitting || !authLoaded}
               className="w-full mt-3 h-11 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white text-sm font-bold shadow-lg shadow-blue-600/20 dark:shadow-blue-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <span>
-                {loading
+                {submitting
                   ? isRTL
                     ? "جاري الدخول..."
                     : "Signing In..."
@@ -389,7 +441,7 @@ export default function SignInPage() {
                     : "Sign In"}
               </span>
 
-              {!loading && (
+              {!submitting && (
                 <ArrowRight
                   size={16}
                   className={isRTL ? "rotate-180" : ""}
@@ -401,7 +453,7 @@ export default function SignInPage() {
             <button
               type="button"
               onClick={handleReset}
-              disabled={loading}
+              disabled={submitting}
               className="w-full h-11 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-sm font-medium transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isRTL ? "إعادة تعيين" : "Reset"}
@@ -438,11 +490,11 @@ export default function SignInPage() {
             {/* Verify Button */}
             <button
               type="submit"
-              disabled={loading || verificationCode.length < 6}
+              disabled={submitting || verificationCode.length < 6}
               className="w-full mt-3 h-11 rounded-xl bg-[#3368A0] hover:bg-[#285783] text-white text-sm font-bold shadow-lg shadow-blue-600/20 dark:shadow-blue-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <span>
-                {loading
+                {submitting
                   ? isRTL
                     ? "جاري التحقق..."
                     : "Verifying..."
@@ -451,7 +503,7 @@ export default function SignInPage() {
                     : "Verify & Sign In"}
               </span>
 
-              {!loading && (
+              {!submitting && (
                 <ArrowRight
                   size={16}
                   className={isRTL ? "rotate-180" : ""}
@@ -464,7 +516,7 @@ export default function SignInPage() {
               <button
                 type="button"
                 onClick={handleResendCode}
-                disabled={resendingCode || loading}
+                disabled={resendingCode || submitting}
                 className="flex-1 h-10 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
                 <RefreshCw size={13} className={resendingCode ? "animate-spin" : ""} />
@@ -482,7 +534,7 @@ export default function SignInPage() {
               <button
                 type="button"
                 onClick={() => setStep("credentials")}
-                disabled={loading}
+                disabled={submitting}
                 className="flex-1 h-10 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:text-slate-300 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
                 <ArrowLeft size={13} className={isRTL ? "rotate-180" : ""} />
