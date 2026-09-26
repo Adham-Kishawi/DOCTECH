@@ -102,12 +102,12 @@ export default function PendingAIBookingsPage() {
             <span>{isRTL ? "وكيل الحجز الذكي" : "Smart Booking Agent"}</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-            {isRTL ? "مراجعة طلبات الحجز القادمة من الواتساب" : "WhatsApp AI Booking Queue"}
+            {isRTL ? "مراجعة طلبات الحجز القادمة من الواتساب" : "WhatsApp Booking Queue"}
           </h1>
           <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             {isRTL
-              ? "مراجعة بشرية للطلبات المجمعة تلقائياً قبل التثبيت النهائي (Human-in-the-Loop)"
-              : "Human-in-the-loop review queue for AI-assisted bookings before final confirmation"}
+              ? "مراجعة واعتماد طلبات حجز الواتساب الواردة قبل التثبيت النهائي في الجدول"
+              : "Review queue for incoming WhatsApp bookings before final confirmation"}
           </p>
         </div>
 
@@ -126,7 +126,7 @@ export default function PendingAIBookingsPage() {
               <Check size={24} />
             </div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              {isRTL ? "تمت مراجعة جميع الطلبات بنجاح!" : "All AI Booking Requests Reviewed!"}
+              {isRTL ? "تمت مراجعة جميع الطلبات بنجاح!" : "All Booking Requests Reviewed!"}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {isRTL ? "لا توجد طلبات معلقة في الوقت الحالي" : "No pending booking requests at the moment."}
@@ -157,7 +157,7 @@ export default function PendingAIBookingsPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
                     <Sparkles size={10} />
-                    <span>AI Confidence: {req.aiConfidence}%</span>
+                    <span>Match Confidence: {req.aiConfidence}%</span>
                   </span>
                   <span className="text-xs font-mono font-bold text-slate-400">({req.id})</span>
                 </div>
@@ -183,7 +183,7 @@ export default function PendingAIBookingsPage() {
 
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-100 dark:border-slate-700 space-y-1">
                   <span className="font-bold text-slate-400 text-[10px] uppercase">
-                    {isRTL ? "شكوى المريض المستخلصة بالـ AI" : "Extracted Symptoms & Reason"}
+                    {isRTL ? "شكوى المريض المستخلصة من الرسائل" : "Extracted Symptoms & Reason"}
                   </span>
                   <p className="font-semibold text-slate-800 dark:text-slate-200 leading-relaxed">
                     {req.symptoms}

@@ -118,12 +118,12 @@ export default function SecretaryWhatsAppChatRoomPage() {
                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase mb-1">
                   {isAI && (
                     <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                      <Bot size={11} /> {isRTL ? "المساعد الذكي" : "Smart Assistant"}
+                      <Bot size={11} /> {isRTL ? "الرد الآلي" : "Automated Assistant"}
                     </span>
                   )}
                   {isClinic && (
                     <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                      <UserCheck size={11} /> {isRTL ? "الاستقبال (بشري)" : "Reception (Human)"}
+                      <UserCheck size={11} /> {isRTL ? "فريق الاستقبال" : "Clinic Reception"}
                     </span>
                   )}
                   {!isOutgoing && <span>Ahmed Hassan</span>}

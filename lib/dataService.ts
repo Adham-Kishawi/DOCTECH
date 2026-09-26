@@ -137,7 +137,7 @@ export const DEFAULT_INTERNAL_MESSAGES: InternalChatMessage[] = [
     channelId: "broadcast",
     senderRole: "doctor",
     senderName: "Dr. Ahmed Hossam",
-    content: "Team meeting today at 04:30 PM in Conference Room to review new WhatsApp AI booking flows.",
+    content: "Team meeting today at 04:30 PM in Conference Room to review new WhatsApp booking flows.",
     isRead: true,
     sentAt: "08:45 AM",
     clinicId: "cln-001",

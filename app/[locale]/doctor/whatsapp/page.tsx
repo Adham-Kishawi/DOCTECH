@@ -169,7 +169,7 @@ export default function DoctorWhatsAppPage() {
     { key: "consultationFee", label: "Consultation Fee (EGP)", labelAr: "سعر الكشف (جنيه)", icon: <DollarSign size={14} />, placeholder: "400", placeholderAr: "400" },
     { key: "followUpFee", label: "Follow-up Fee (EGP)", labelAr: "سعر المتابعة (جنيه)", icon: <DollarSign size={14} />, placeholder: "200", placeholderAr: "200" },
     { key: "services", label: "Services", labelAr: "الخدمات المتاحة", icon: <Stethoscope size={14} />, placeholder: "e.g. ECG, Echo, Blood tests", placeholderAr: "مثال: رسم قلب، أشعة، تحاليل", wide: true },
-    { key: "additionalNotes", label: "Additional Notes for AI", labelAr: "ملاحظات إضافية للمساعد الذكي", icon: <FileText size={14} />, placeholder: "Any extra info the assistant should know...", placeholderAr: "أي معلومات إضافية المساعد الذكي يحتاج يعرفها...", wide: true },
+    { key: "additionalNotes", label: "Additional Notes for Automation", labelAr: "ملاحظات إضافية لنظام الرد الآلي", icon: <FileText size={14} />, placeholder: "Any extra info the assistant should know...", placeholderAr: "أي معلومات إضافية المساعد يحتاج معرفتها...", wide: true },
   ];
 
   return (
@@ -288,8 +288,8 @@ export default function DoctorWhatsAppPage() {
               </h2>
               <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                 {isRTL
-                  ? "المواعيد، الأسعار، الخدمات — يستخدمها المساعد الذكي للرد على المرضى"
-                  : "Hours, fees, services — used by the AI assistant to answer patients"}
+                  ? "المواعيد، الأسعار، الخدمات — يستخدمها المساعد الآلي للرد على المرضى"
+                  : "Hours, fees, services — used by the automated assistant to answer patients"}
               </p>
             </div>
           </div>

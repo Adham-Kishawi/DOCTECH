@@ -166,7 +166,7 @@ export default function DoctorMedicalReviewDetailPage() {
                   }`}
                 >
                   <Sparkles size={15} />
-                  <span>AI Patient Summary</span>
+                  <span>Clinical Patient Summary</span>
                 </button>
               </div>
             </div>

@@ -1,6 +1,6 @@
 # 🏥 DOCTECH — الدليل الشامل ووثيقة حالة المشروع الكاملة (Master Project Status & System Specs)
 
-> **DOCTECH:** نظام سحابي متكامل لإدارة المراكز الطبية والعيادات المتعددة (Multi-Tenant Clinic Management OS) مصمم ومبني للإطلاق التجاري المباشر، مع عزل كامل للبيانات (Row-Level Multi-Tenancy)، ونظام حجز ذكي، وتكامل مباشر مع واتساب والذكاء الاصطناعي (Hermes AI).
+> **DOCTECH:** نظام سحابي متكامل لإدارة المراكز الطبية والعيادات المتعددة (Multi-Tenant Clinic Management OS) مصمم ومبني للإطلاق التجاري المباشر، مع عزل كامل للبيانات (Row-Level Multi-Tenancy)، ونظام حجز ذكي، وتكامل مباشر مع واتساب والرد الآلي (WhatsApp Automation).
 
 ---
 
@@ -19,7 +19,7 @@
 | الحساب | البريد الإلكتروني | كلمة المرور | الصلاحيات والدور | الرابط المباشر |
 |---|---|---|---|---|
 | **الطبيب (Doctor / Practice Owner)** | `doctor@doctech.com` | `password123` | إدارة العيادة، الكشوفات، إعدادات مواعيد العمل، الأرباح، إنشاء وإدارة السكرتارية وتحديد الصلاحيات، واستدعاء الاستقبال. | [فتح لوحة الطبيب](http://localhost:3000/en/doctor/dashboard) |
-| **السكرتيرة (Secretary / Front Desk)** | `secretary@doctech.com` | `password123` | حجز وإدارة المواعيد، مراجعة طلبات حجز الـ AI، سجل المرضى EMR، الخزينة والتحصيل، محادثات الواتساب، والتواصل مع الطبيب. | [فتح لوحة السكرتيرة](http://localhost:3000/en/secretary/dashboard) |
+| **السكرتيرة (Secretary / Front Desk)** | `secretary@doctech.com` | `password123` | حجز وإدارة المواعيد، مراجعة طلبات حجز الواتساب، سجل المرضى EMR، الخزينة والتحصيل، محادثات الواتساب، والتواصل مع الطبيب. | [فتح لوحة السكرتيرة](http://localhost:3000/en/secretary/dashboard) |
 
 > 💡 **الدخول السريع (1-Click Demo):** في صفحة تسجيل الدخول [`/sign-in`](http://localhost:3000/en/sign-in) يمكنك الضغط مباشرة على **Doctor View** أو **Secretary View** للدخول الفوري.
 
@@ -60,9 +60,9 @@
 * **مسار حساب المواعيد المتاحة [`/api/appointments/available-slots`](file:///D:/FULL-PROJECTS/DOCTECH/app/api/appointments/available-slots/route.ts):** فحص المواعيد المتاحة ومنع الحجز المزدوج (Double-Booking Prevention).
 * **فورم الحجز المحسن للسكرتيرة [`/en/secretary/appointments/new`](http://localhost:3000/en/secretary/appointments/new):** اختيار الطبيب، نوع الكشف، السعر، طريقة الدفع (Cash, Card, Transfer, Insurance)، وإرسال تأكيد بالواتساب تلقائيًا.
 
-### 6. 🤖 طابور مراجعة حجوزات الذكاء الاصطناعي (Hermes AI Review Queue - Human in the Loop)
+### 6. 📱 طابور مراجعة حجوزات الواتساب الآلية (WhatsApp Booking Review Queue)
 * **الرابط:** [`/en/secretary/appointments/pending`](http://localhost:3000/en/secretary/appointments/pending)
-* الحجوزات القادمة عبر واتساب من الوكيل الذكي Hermes لا تُثبت نهائيًا بشكل آلي 100%، بل تدخل في طابور مراجعة بحالة `PENDING_REVIEW` مع نسبة ثقة الـ AI وتفاصيل الشكوى، لتعتمدها السكرتيرة أو تقترح موعدًا بديلًا بضغطة زر.
+* الحجوزات القادمة عبر واتساب لا تُثبت نهائيًا بشكل تلقائي، بل تدخل في طابور مراجعة بحالة `PENDING_REVIEW` مع نسبة المطابقة وتفاصيل الشكوى، لتعتمدها السكرتيرة أو تقترح موعدًا بديلًا بضغطة زر.
 
 ### 7. 👤 ملف المريض بـ 3 تبويبات شاملة (Patient Profile EMR & Attachments)
 * **الرابط التجريبي:** [`/en/secretary/patients/PAT-001`](http://localhost:3000/en/secretary/patients/PAT-001)
@@ -77,7 +77,7 @@
 * مسار الـ API: [`/api/finance/summary`](file:///D:/FULL-PROJECTS/DOCTECH/app/api/finance/summary/route.ts).
 
 ### 9. 🔔 مركز الإشعارات الفوري (Notification Bell)
-* مكون الجرس في الهيدر [`NotificationBell.tsx`](file:///D:/FULL-PROJECTS/DOCTECH/components/layout/NotificationBell.tsx) مع عداد تفاعلي غير مقروء، تصنيف للتنبيهات (طلبات AI، حجوزات جديدة، استفسارات طارئة)، وخيار تعيين الكل كمقروء.
+* مكون الجرس في الهيدر [`NotificationBell.tsx`](file:///D:/FULL-PROJECTS/DOCTECH/components/layout/NotificationBell.tsx) مع عداد تفاعلي غير مقروء، تصنيف للتنبيهات (طلبات واتساب، حجوزات جديدة، استفسارات طارئة)، وخيار تعيين الكل كمقروء.
 * مسار الـ API: [`/api/notifications`](file:///D:/FULL-PROJECTS/DOCTECH/app/api/notifications/route.ts) وخدمة [`lib/notificationService.ts`](file:///D:/FULL-PROJECTS/DOCTECH/lib/notificationService.ts).
 
 ### 10. 💬 تكامل الواتساب السحابي والذكاء الاصطناعي (Meta Cloud API + OpenRouter)
@@ -126,7 +126,7 @@ OPENROUTER_FALLBACK_MODEL=thudm/glm-4-9b-chat
 | **Doctor Reports** | `/en/doctor/reports` | مراجعة تقارير واستفسارات المرضى والروشتات |
 | **Secretary Dashboard** | `/en/secretary/dashboard` | لوحة تحكم الاستقبال والمكتب الأمامي |
 | **Secretary Appointments** | `/en/secretary/appointments` | إدارة جدول المواعيد والحالات |
-| **AI Booking Queue** | `/en/secretary/appointments/pending` | مراجعة واعتماد طلبات حجز الواتساب الذكية |
+| **WhatsApp Booking Queue** | `/en/secretary/appointments/pending` | مراجعة واعتماد طلبات حجز الواتساب الواردة |
 | **New Booking Form** | `/en/secretary/appointments/new` | حجز كشف جديد ومنع الازدواجية وتحديد السعر |
 | **Patient Directory** | `/en/secretary/patients` | دليل وسجل المرضى العام |
 | **Patient Profile & EMR** | `/en/secretary/patients/PAT-001` | ملف المريض (بيانات عامة، سجل زمني، أشعة وروشتات) |
@@ -144,7 +144,7 @@ OPENROUTER_FALLBACK_MODEL=thudm/glm-4-9b-chat
 - [x] بناء نظام إدارة السكرتارية المباشر (Direct Staff Account CRUD & Permissions).
 - [x] بناء نظام المحادثات المباشرة 1-on-1 بين الطبيب والسكرتارية مع البحث وقناة الإعلانات.
 - [x] بناء نظام الحجز والجدولة وإعدادات فترات العمل ومنع الازدواجية.
-- [x] بناء طابور مراجعة حجوزات الـ AI من واتساب (Human-in-the-Loop).
+- [x] بناء طابور مراجعة حجوزات الواتساب الواردة قبل الاعتماد النهائي.
 - [x] بناء ملف المريض الشامل EMR بـ 3 تبويبات (المعلومات، التايم لاين، ورافع الأشعة والروشتات).
 - [x] بناء لوحات الخزينة وإيرادات الطبيب المنفصلة.
 - [x] بناء عميل Meta WhatsApp Cloud وعميل OpenRouter (Qwen + GLM) والـ Webhooks.

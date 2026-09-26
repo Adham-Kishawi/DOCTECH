@@ -80,7 +80,7 @@ export default function SecretaryAppointmentsPage() {
       currentAppointments.map((a) => (a.id === id ? { ...a, bookingStatus: "APPROVED", status: "confirmed" } : a))
     );
     toast.success(
-      isRTL ? "تم اعتماد الحجز وإرسال تأكيد بالواتساب للمريض ✅" : "AI booking approved & confirmation sent via WhatsApp ✅"
+      isRTL ? "تم اعتماد الحجز وإرسال تأكيد بالواتساب للمريض ✅" : "Booking approved & confirmation sent via WhatsApp ✅"
     );
   };
 
@@ -116,8 +116,8 @@ export default function SecretaryAppointmentsPage() {
           </h1>
           <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             {isRTL
-              ? "مواعيد حقيقية ومسجلة في قاعدة البيانات، مراجعة طلبات الذكاء الاصطناعي، وتحديث الحالات"
-              : "Live database appointments, approve AI booking requests, and manage patient care"}
+              ? "مواعيد حقيقية ومسجلة في قاعدة البيانات، مراجعة طلبات حجز الواتساب، وتحديث الحالات"
+              : "Live database appointments, approve online booking requests, and manage patient care"}
           </p>
         </div>
 
@@ -127,7 +127,7 @@ export default function SecretaryAppointmentsPage() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold hover:bg-purple-100 transition-all relative"
           >
             <Bot size={15} className="text-purple-600 dark:text-purple-400" />
-            <span>{isRTL ? "طلبات حجز الـ AI" : "AI Bookings"}</span>
+            <span>{isRTL ? "طلبات حجز الواتساب" : "WhatsApp Bookings"}</span>
             {pendingAICount > 0 && (
               <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">
                 {pendingAICount}
@@ -154,7 +154,7 @@ export default function SecretaryAppointmentsPage() {
             { key: "scheduled", labelEn: "Scheduled", labelAr: "مجدول" },
             { key: "completed", labelEn: "Completed", labelAr: "مكتمل" },
             { key: "cancelled", labelEn: "Cancelled", labelAr: "ملغي" },
-            { key: "pending_ai", labelEn: "AI Pending", labelAr: "معلق (AI)" },
+            { key: "pending_ai", labelEn: "Pending Review", labelAr: "بانتظار المراجعة" },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -238,7 +238,7 @@ export default function SecretaryAppointmentsPage() {
                     <span className="text-xs font-mono text-slate-400">({apt.patientPhone})</span>
                     {apt.bookingStatus === "PENDING_REVIEW" && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-50 dark:bg-purple-950/40 text-purple-600 border border-purple-200">
-                        {isRTL ? "بانتظار المراجعة (AI)" : "Pending Review (AI)"}
+                        {isRTL ? "بانتظار المراجعة (واتساب)" : "Pending Review (WhatsApp)"}
                       </span>
                     )}
                   </div>
