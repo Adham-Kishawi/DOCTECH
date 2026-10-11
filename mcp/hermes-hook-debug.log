@@ -1,0 +1,227 @@
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791398552|e5112af43395c457e9f866369e008f5f2eed7de83fdceb5c86ee88b19f56c625
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791402767|e1beaa24ba05f256cb425837889bb0f62d4aec847fb1d9ea4902b3d6f2a9da89
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791403092|55c4e350ba8352456b475685d2759b7b66d33d87856146f93dca6892e0f4ae4b
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791459766|57ae19a41dd8073ba7519bf4935927c86d7f36129791f96064b733bc5d1493c6
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791461324|790617bef5c0c90f89e952f79ff73397cacea7b5479d7327375372fe2447da91
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791464736|33643b0a4bf4228eee8158b0c07f89b15dce6f31f7f5ca71fecb7b3f9bfdcfe9
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=[]
+trusted_bot_id=
+context=
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=[]
+trusted_bot_id=
+context=
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791465142|db5e6e289533d16a3b9ccc0892ef53431166bd109ebc99e3af2f9333540b6b24
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791465266|609c4bc1823b9a8fb7a5863be7c045460f9e6df155fa4c50ec5fddc3f37705db
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791465871|5acbe4154d8fef45872d16c5d6a76a468ac3a570fc71439b5b3f2cb47b67df1f
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context=DOCTECH trusted WhatsApp bot ID: 201031445949@s.whatsapp.net
+DOCTECH trusted tenant token: 201031445949@s.whatsapp.net|9352efd9-1aeb-4f4e-b753-7586337ddf69|1791466767|8e99da8a1c72bbbb2d24c54963227ffec1cb34629cd5dfc0806503f4d808a730
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----
+----- HOOK START -----
+bot_ids=['201031445949@s.whatsapp.net', '189039361658980@lid']
+trusted_bot_id=201031445949@s.whatsapp.net
+resolver_url=http://localhost:3000/api/internal/whatsapp/resolve-clinic?botId=201031445949%40s.whatsapp.net
+resolver_result={'success': True, 'clinicId': '9352efd9-1aeb-4f4e-b753-7586337ddf69'}
+clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69
+tenant_token_generated=true
+context_ready=true, bot_id=201031445949@s.whatsapp.net, clinic_id=9352efd9-1aeb-4f4e-b753-7586337ddf69, tenant_token_present=True
+----- HOOK END -----

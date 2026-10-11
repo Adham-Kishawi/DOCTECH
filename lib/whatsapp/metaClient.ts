@@ -1,6 +1,16 @@
+
+
+
+
+export interface WhatsAppCredentials {
+  phoneNumberId: string;
+  accessToken: string;
+}
+
 export interface SendMessageParams {
-  to: string; // Recipient WhatsApp Phone Number with country code e.g. "201001234567"
+  to: string;
   text: string;
+  credentials?: WhatsAppCredentials;
 }
 
 export interface SendBookingConfirmationParams {
@@ -10,6 +20,7 @@ export interface SendBookingConfirmationParams {
   date: string;
   time: string;
   clinicName?: string;
+  credentials?: WhatsAppCredentials;
 }
 
 export class MetaWhatsAppClient {
@@ -23,20 +34,38 @@ export class MetaWhatsAppClient {
   }
 
   // Send standard text message
-  async sendTextMessage({ to, text }: SendMessageParams) {
-    if (!this.phoneNumberId || !this.accessToken) {
-      console.warn("Meta WhatsApp API keys not configured. Simulating message dispatch:", { to, text });
-      return { success: true, simulated: true, messageId: `wamid_sim_${Date.now()}` };
+  async sendTextMessage({
+    to,
+    text,
+    credentials,
+  }: SendMessageParams) {
+    const phoneNumberId =
+      credentials?.phoneNumberId || this.phoneNumberId;
+
+    const accessToken =
+      credentials?.accessToken || this.accessToken;
+
+    if (!phoneNumberId || !accessToken) {
+      console.warn(
+        "Meta WhatsApp API keys not configured. Simulating message dispatch:",
+        { to, text }
+      );
+
+      return {
+        success: true,
+        simulated: true,
+        messageId: `wamid_sim_${Date.now()}`,
+      };
     }
 
     const cleanPhone = to.replace(/[^0-9]/g, "");
 
     const response = await fetch(
-      `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`,
+      `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}/messages`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -44,18 +73,27 @@ export class MetaWhatsAppClient {
           recipient_type: "individual",
           to: cleanPhone,
           type: "text",
-          text: { preview_url: false, body: text },
+          text: {
+            preview_url: false,
+            body: text,
+          },
         }),
       }
     );
 
     const data = await response.json();
+
     if (!response.ok) {
       console.error("Meta WhatsApp API error:", data);
-      throw new Error(data.error?.message || "Failed to send WhatsApp message");
+      throw new Error(
+        data.error?.message || "Failed to send WhatsApp message"
+      );
     }
 
-    return { success: true, data };
+    return {
+      success: true,
+      data,
+    };
   }
 
   // Send structured appointment confirmation
@@ -66,23 +104,42 @@ export class MetaWhatsAppClient {
     date,
     time,
     clinicName = "DOCTECH Clinic",
+    credentials,
   }: SendBookingConfirmationParams) {
-    const confirmationText = `مرحبًا ${patientName} 👋\n\nتم استلام وتأكيد حجز كشفك في ${clinicName} بنجاح ✅\n\n📅 الموعد: ${date} الساعة ${time}\n👨‍⚕️ الطبيب: ${doctorName}\n\n📍 يرجى الحضور قبل الموعد بـ ١٠ دقائق. في حال الرغبة في التعديل أو الاستفسار يمكنك الرد على هذه الرسالة مباشرة. نتمنى لك دوام الصحة والعافية! 🩺`;
+    const confirmationText = `Ù…Ø±ØØ¨Ù‹Ø§ ${patientName} ðŸ‘‹\n\nØªÙ… Ø§Ø³ØªÙ„Ø§Ù… ÙˆØªÙƒÙŠÙŠØ¯ ØØ¬Ø² ÙƒØ´ÙÙƒ ÙÙŠ ${clinicName} Ø¨Ù†Ø¬Ø§Ø âœ…\n\nðŸ“… Ø§Ù„Ù…ÙˆØ¹Ø¯: ${date} Ø§Ù„Ø³Ø§Ø¹Ø© ${time}\nðŸ‘¨â€âš•ï¸ Ø§Ù„Ø·Ø¨ÙŠØ¨: ${doctorName}\n\nðŸ“ ÙŠØ±Ø¬Ù‰ Ø§Ù„ØØ¶ÙˆØ± Ù‚Ø¨Ù„ Ø§Ù„Ù…ÙˆØ¹Ø¯ Ø¨Ù€ Ù¡Ù  Ø¯Ù‚Ø§Ø¦Ù‚. ÙÙŠ ØØ§Ù„ Ø§Ù„Ø±ØºØ¨Ø© ÙÙŠ Ø§Ù„ØªØ¹Ø¯ÙŠÙ„ Ø£Ùˆ Ø§Ù„Ø§Ø³ØªÙØ³Ø§Ø± ÙŠÙ…ÙƒÙ†Ùƒ Ø§Ù„Ø±Ø¯ Ø¹Ù„Ù‰ Ù‡Ø°Ù‡ Ø§Ù„Ø±Ø³Ø§Ù„Ø© Ù…Ø¨Ø§Ø´Ø±Ø©. Ù†ØªÙ…Ù†Ù‰ Ù„Ùƒ Ø¯ÙˆØ§Ù… Ø§Ù„ØµØØ© ÙˆØ§Ù„Ø¹Ø§ÙÙŠØ©! ðŸ©º`;
 
-    return this.sendTextMessage({ to, text: confirmationText });
+    return this.sendTextMessage({
+      to,
+      text: confirmationText,
+      credentials,
+    });
   }
 
   // Mark incoming WhatsApp message as read
-  async markAsRead(messageId: string) {
-    if (!this.phoneNumberId || !this.accessToken) return { success: true, simulated: true };
+  async markAsRead(
+    messageId: string,
+    credentials?: WhatsAppCredentials
+  ) {
+    const phoneNumberId =
+      credentials?.phoneNumberId || this.phoneNumberId;
+
+    const accessToken =
+      credentials?.accessToken || this.accessToken;
+
+    if (!phoneNumberId || !accessToken) {
+      return {
+        success: true,
+        simulated: true,
+      };
+    }
 
     try {
       await fetch(
-        `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`,
+        `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}/messages`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${this.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({

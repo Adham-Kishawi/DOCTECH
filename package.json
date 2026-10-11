@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
-    "build": "next build --webpack",
-    "start": "next start",
+    "dev": "node api.js && next dev --webpack",
+    "mcp": "tsx mcp/server.ts",
+    "build": "node api.js && next build --webpack",
+    "start": "node api.js && next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.4",
     "@hookform/resolvers": "^5.9.1",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "@prisma/client": "^7.10.0",
     "@supabase/supabase-js": "^2.116.0",
     "@tanstack/react-query": "^5.103.1",
@@ -21,6 +23,7 @@
     "lucide-react": "^1.47.0",
     "next": "16.3.5",
     "next-intl": "^4.14.5",
+    "openai": "^7.21.0",
     "pg": "^8.23.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -40,6 +43,7 @@
     "eslint-config-next": "16.3.5",
     "prisma": "^8.0.0-rc.12",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
