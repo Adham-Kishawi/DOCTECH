@@ -20,7 +20,8 @@ import { toast } from "sonner";
 /* ─── Types ─── */
 interface ConfigStatus {
   configured: boolean;
-  phoneNumberIdMasked?: string | null;
+  phoneNumberId?: string;
+  displayPhoneNumber?: string;
   accessTokenSet?: boolean;
   webhookVerifyTokenSet?: boolean;
 }
@@ -44,30 +45,11 @@ export default function DoctorWhatsAppPage() {
 
   /* ── Clinic Number ── */
   const [phoneRaw, setPhoneRaw] = useState(DEFAULT_RAW);
-  const [isEditingPhone, setIsEditingPhone] = useState(false);
-  const [editPhoneValue, setEditPhoneValue] = useState("");
-  const phoneInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setPhoneRaw(getStoredPhone()); }, []);
-  const phoneFmt = formatEgyptianPhone(phoneRaw);
+  // const [editPhoneValue, setEditPhoneValue] = useState("");
+  // const phoneInputRef = useRef<HTMLInputElement>(null);
 
-  const beginEditPhone = () => {
-    setEditPhoneValue(phoneRaw);
-    setIsEditingPhone(true);
-    requestAnimationFrame(() => phoneInputRef.current?.focus());
-  };
-  const savePhone = () => {
-    const cleaned = editPhoneValue.replace(/[^0-9]/g, "");
-    if (cleaned.length < 10) {
-      toast.error(isRTL ? "يرجى إدخال رقم هاتف صحيح" : "Please enter a valid phone number");
-      return;
-    }
-    setStoredPhone(cleaned);
-    setPhoneRaw(cleaned);
-    setIsEditingPhone(false);
-    toast.success(isRTL ? "تم حفظ الرقم الجديد ✓" : "Phone number updated ✓");
-  };
-  const cancelEditPhone = () => { setIsEditingPhone(false); setEditPhoneValue(phoneRaw); };
+  
 
   /* ── Clinic Context Data ── */
   const [clinicData, setClinicData] = useState<ClinicContextData>(DEFAULT_CLINIC_CONTEXT);
@@ -97,13 +79,33 @@ export default function DoctorWhatsAppPage() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [showApiSection, setShowApiSection] = useState(false);
+  /////////////////////////////
+  const phoneFmt = apiStatus?.displayPhoneNumber
+    ? {
+      ...formatEgyptianPhone(phoneRaw),
+      display: apiStatus.displayPhoneNumber,
+    }
+    : formatEgyptianPhone(phoneRaw);
 
+  /////////////////////////////
   const fetchApiStatus = useCallback(async () => {
     setLoadingApi(true);
-    try { const r = await fetch("/api/whatsapp/config"); const j = await r.json(); if (j.success) setApiStatus(j); }
-    catch { setApiStatus(null); }
-    finally { setLoadingApi(false); }
+    try {
+      const r = await fetch("/api/whatsapp/config");
+      const j = await r.json();
+
+      if (j.success) {
+        setApiStatus(j);
+        setPhoneNumberId(j.phoneNumberId);
+        setPhoneRaw(j.displayPhoneNumber || DEFAULT_RAW);
+      }
+    } catch {
+      setApiStatus(null);
+    } finally {
+      setLoadingApi(false);
+    }
   }, []);
+  /////////////////////////////////////////////////////////////
   useEffect(() => { fetchApiStatus(); }, [fetchApiStatus]);
 
   const handleTestConnection = async (e: React.FormEvent) => {
@@ -203,41 +205,23 @@ export default function DoctorWhatsAppPage() {
                 </p>
               </div>
 
-              {isEditingPhone ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    ref={phoneInputRef}
-                    type="tel"
-                    value={editPhoneValue}
-                    onChange={(e) => setEditPhoneValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") savePhone(); if (e.key === "Escape") cancelEditPhone(); }}
-                    placeholder="01XXXXXXXXX"
-                    className="h-11 px-3.5 rounded-xl border-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/30 text-lg font-bold font-mono text-slate-900 dark:text-white tracking-wider outline-none focus:border-emerald-500 transition-colors w-48"
-                    dir="ltr"
-                  />
-                  <button onClick={savePhone} className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer active:scale-95">
-                    <Check size={13} />
-                    <span>{isRTL ? "حفظ" : "Save"}</span>
-                  </button>
-                  <button onClick={cancelEditPhone} className="h-9 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold transition-colors cursor-pointer">
-                    {isRTL ? "إلغاء" : "Cancel"}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-xl sm:text-2xl font-black font-mono tracking-wide text-slate-900 dark:text-white leading-none" dir="ltr">
-                    {phoneFmt.display}
-                  </h2>
-                  <button
-                    onClick={beginEditPhone}
-                    className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 flex items-center justify-center transition-colors cursor-pointer"
-                    title={isRTL ? "تغيير الرقم" : "Change number"}
-                  >
-                    <Pencil size={12} />
-                  </button>
-                </div>
-              )}
 
+
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-xl sm:text-2xl font-black font-mono tracking-wide text-slate-900 dark:text-white leading-none" dir="ltr">
+                  {phoneFmt.display}
+                </h2>
+
+                {/* phase 2 */}
+                {/* <button
+
+                  className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 flex items-center justify-center transition-colors cursor-pointer"
+                  title={isRTL ? "تغيير الرقم" : "Change number"}
+                >
+                  <Pencil size={12} />
+                </button> */}
+              </div>
+              {/* ////////////////////////////////////////// */}
               <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium leading-relaxed max-w-xs">
                 {isRTL
                   ? "الرقم الذي يتلقى محادثات المرضى. يمكنك تغييره في أي وقت."
@@ -463,11 +447,15 @@ export default function DoctorWhatsAppPage() {
                 <p className="font-bold text-slate-600 dark:text-slate-300">{isRTL ? "الحالة" : "Status"}</p>
                 <p className="text-slate-400 mt-0.5">{apiStatus?.configured ? (isRTL ? "مفعّل" : "Active") : (isRTL ? "محاكاة" : "Sim")}</p>
               </div>
-              <div className={`p-3 rounded-xl border text-center ${apiStatus?.phoneNumberIdMasked ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900" : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"}`}>
-                <Phone size={15} className={`mx-auto mb-1 ${apiStatus?.phoneNumberIdMasked ? "text-emerald-500" : "text-slate-300"}`} />
+              {/* /////////////////////// */}
+              <div className={`p-3 rounded-xl border text-center ${apiStatus?.phoneNumberId ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900" : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"}`}>
+                <Phone size={15} className={`mx-auto mb-1 ${apiStatus?.phoneNumberId ? "text-emerald-500" : "text-slate-300"}`} />
                 <p className="font-bold text-slate-600 dark:text-slate-300">Phone ID</p>
-                <p className="text-slate-400 mt-0.5 font-mono truncate text-[10px]">{apiStatus?.phoneNumberIdMasked ?? "—"}</p>
+                <p className="text-slate-400 mt-0.5 font-mono truncate text-[10px]">
+                  {apiStatus?.phoneNumberId ?? "—"}
+                </p>
               </div>
+              {/* /////////////////////////////////////// */}
               <div className={`p-3 rounded-xl border text-center ${apiStatus?.webhookVerifyTokenSet ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900" : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"}`}>
                 <ShieldCheck size={15} className={`mx-auto mb-1 ${apiStatus?.webhookVerifyTokenSet ? "text-emerald-500" : "text-slate-300"}`} />
                 <p className="font-bold text-slate-600 dark:text-slate-300">Webhook</p>
@@ -489,7 +477,7 @@ export default function DoctorWhatsAppPage() {
               </div>
               <button
                 type="submit"
-                disabled={testing || !phoneNumberId || !accessToken}
+                disabled={testing || !phoneNumberId}
                 className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98] disabled:opacity-40"
               >
                 {testing ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
@@ -539,3 +527,5 @@ export default function DoctorWhatsAppPage() {
     </div>
   );
 }
+
+

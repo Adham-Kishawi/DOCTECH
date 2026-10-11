@@ -1,0 +1,15 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "feature/secretary-logic",
+    "main"
+  ],
+  "parent": {
+    "feature/secretary-logic": "main",
+    "main": null
+  },
+  "order": [
+    "main",
+    "feature/secretary-logic"
+  ]
+}

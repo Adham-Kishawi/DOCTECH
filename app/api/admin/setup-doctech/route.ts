@@ -139,7 +139,17 @@ export async function GET(request: Request) {
       "wa_message_id" TEXT,
       "status" TEXT NOT NULL DEFAULT 'SENT',
       "sent_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-    );`
+    );`,
+
+        `CREATE TABLE IF NOT EXISTS "whatsapp_configs" (
+      "id" TEXT PRIMARY KEY,
+      "clinic_id" TEXT NOT NULL UNIQUE REFERENCES "clinics"("id") ON DELETE CASCADE,
+      "phone_number_id" TEXT NOT NULL UNIQUE,
+      "access_token" TEXT NOT NULL,
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );`,
+    
   ];
 
   if (pgClient) {
@@ -155,6 +165,7 @@ export async function GET(request: Request) {
         "notifications",
         "whatsapp_conversations",
         "whatsapp_messages",
+        "whatsapp_configs",
       ];
     } catch (err: any) {
       console.error("PG DDL error:", err);
