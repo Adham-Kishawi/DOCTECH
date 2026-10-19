@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X, DollarSign, Check, Banknote, CreditCard, Landmark, ShieldCheck } from "lucide-react";
-import type { RevenueItem } from "@/app/api/doctor/finance/route";
+import type { RevenueItem } from "@/types/index";
 
 interface RevenueModalProps {
   isOpen: boolean;

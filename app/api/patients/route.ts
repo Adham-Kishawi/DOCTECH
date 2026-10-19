@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import type { PatientListItem } from "@/types/index";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
+import { getClinicTimezone } from "@/lib/schedule/availabilityService";
+import { formatInClinicZone } from "@/lib/schedule/clinicTime";
 
 const CreatePatientSchema = z.object({
   name: z.string().min(1).max(200),
@@ -16,14 +19,10 @@ const CreatePatientSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.PATIENTS_VIEW });
+    // Last-visit labels are rendered server-side, so they must follow the
+    // clinic's calendar rather than the API server's.
+    const timeZone = await getClinicTimezone(session.clinicId);
 
     const { searchParams } = new URL(request.url);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "100", 10), 1), 500);
@@ -50,7 +49,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: true, data: [] });
       }
 
-      const formatted = (fallbackData || []).map((p) => {
+      const formatted: PatientListItem[] = (fallbackData || []).map((p) => {
         const birthDate = p.date_of_birth || p.dateOfBirth;
         const age = birthDate ? Math.max(0, new Date().getFullYear() - new Date(birthDate).getFullYear()) : null;
         return {
@@ -73,7 +72,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: formatted });
     }
 
-    const formatted = (rawPatients || []).map((p) => {
+    const formatted: PatientListItem[] = (rawPatients || []).map((p) => {
       const birthDate = p.date_of_birth || p.dateOfBirth;
       const age = birthDate ? Math.max(0, new Date().getFullYear() - new Date(birthDate).getFullYear()) : null;
       const appointments = Array.isArray(p.appointments) ? p.appointments : [];
@@ -84,9 +83,21 @@ export async function GET(request: Request) {
 
       if (appointments.length > 0) {
         const sorted = [...appointments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const lastDate = new Date(sorted[0].date);
-        lastVisit = lastDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-        lastVisitAr = lastDate.toLocaleDateString("ar-EG", { month: "short", day: "numeric", year: "numeric" });
+        const rawLast = String(sorted[0].date ?? "");
+        lastVisit = formatInClinicZone(
+          rawLast,
+          timeZone,
+          { month: "short", day: "numeric", year: "numeric" },
+          "en-US",
+          rawLast
+        );
+        lastVisitAr = formatInClinicZone(
+          rawLast,
+          timeZone,
+          { month: "short", day: "numeric", year: "numeric" },
+          "ar-EG",
+          rawLast
+        );
       }
 
       return {
@@ -108,14 +119,13 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data: formatted });
   } catch (error) {
-    console.error("Patients GET error:", error);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return toErrorResponse(error, "Patients GET error:");
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const session = await getClinicSession();
+    const session = await requireSession({ permission: PERMISSIONS.PATIENTS_MANAGE });
     const body = await req.json();
     const parsed = CreatePatientSchema.safeParse(body);
 
@@ -123,13 +133,6 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { success: false, error: "Invalid input", details: parsed.error.flatten().fieldErrors },
         { status: 400 }
-      );
-    }
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
       );
     }
 
@@ -153,13 +156,15 @@ export async function POST(req: Request) {
     const { data, error } = await supabase.from("patients").insert([newPatient]).select();
 
     if (error) {
-      console.error("Patient insert error:", error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+            console.error("Patient insert error:", error);
+      return NextResponse.json(
+        { success: false, error: "Failed to save: " + "Patient insert error:" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true, data: data?.[0] || newPatient }, { status: 201 });
   } catch (error) {
-    console.error("Patients POST error:", error);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return toErrorResponse(error, "Patients POST error:");
   }
 }

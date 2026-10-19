@@ -18,6 +18,7 @@ import {
   Stethoscope,
   BarChart3,
   FileText,
+  Repeat,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -38,7 +39,14 @@ import { toast } from "sonner";
 import { ExpenseModal, EXPENSE_CATEGORIES } from "@/components/doctor/finance/ExpenseModal";
 import { RevenueModal } from "@/components/doctor/finance/RevenueModal";
 import { ProfitLossStatement } from "@/components/doctor/finance/ProfitLossStatement";
-import type { ExpenseItem, RevenueItem, MonthFinancialRecord } from "@/app/api/doctor/finance/route";
+import { FixedCostTemplates } from "@/components/doctor/finance/FixedCostTemplates";
+import type {
+  ExpenseItem,
+  ExpenseCategoryOption,
+  MonthFinancialRecord,
+  ProfitAndLossPayload,
+  RevenueItem,
+} from "@/types/index";
 
 // Default empty month record for clean slate
 function createEmptyMonthRecord(monthKey: string): MonthFinancialRecord {
@@ -83,7 +91,7 @@ export default function DoctorFinancePage() {
 
   const currentMonthKey = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
-  const [activeTab, setActiveTab] = useState<"overview" | "expenses" | "revenues" | "pnl">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "expenses" | "revenues" | "pnl" | "fixed">("overview");
 
   // Multi-month database state
   const [monthsData, setMonthsData] = useState<Record<string, MonthFinancialRecord>>({});
@@ -94,6 +102,14 @@ export default function DoctorFinancePage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
+
+  // Rebuilt P&L (Phase 2): every figure from /api/finance/pl is a sum of real rows.
+  const [plData, setPlData] = useState<ProfitAndLossPayload | null>(null);
+  const [plLoading, setPlLoading] = useState(false);
+  const [plUnavailable, setPlUnavailable] = useState(false);
+
+  // Expense category registry for the selector (system + clinic rows).
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryOption[]>([]);
 
   // Expense search & filters
   const [expenseSearch, setExpenseSearch] = useState("");
@@ -134,6 +150,58 @@ export default function DoctorFinancePage() {
       isMounted = false;
     };
   }, [selectedMonth]);
+
+  // Fetch the rebuilt P&L for the selected month (all rows, no invented splits).
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchPl() {
+      try {
+        setPlLoading(true);
+        const res = await fetch(`/api/finance/pl?month=${encodeURIComponent(selectedMonth)}`);
+        const data = await res.json();
+        if (!isMounted) return;
+
+        if (res.status === 503 || data.unavailable) {
+          setPlData(null);
+          setPlUnavailable(true);
+        } else if (data.success && data.pl) {
+          setPlData(data.pl);
+          setPlUnavailable(false);
+        } else {
+          setPlData(null);
+        }
+      } catch (err) {
+        console.error("Failed to load P&L:", err);
+        if (isMounted) setPlData(null);
+      } finally {
+        if (isMounted) setPlLoading(false);
+      }
+    }
+
+    fetchPl();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedMonth]);
+
+  // Load the expense category registry once for the selector modal.
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/finance/categories")
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data.success && Array.isArray(data.categories)) {
+          setExpenseCategories(data.categories);
+        }
+      })
+      .catch((err) => console.error("Failed to load expense categories:", err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Current month active record
   const currentRecord = useMemo(() => {
@@ -443,7 +511,7 @@ export default function DoctorFinancePage() {
           </div>
           <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-2">
             <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-mono">
-              {((totalExpenses / grossRevenue) * 100).toFixed(0)}%
+              {grossRevenue > 0 ? ((totalExpenses / grossRevenue) * 100).toFixed(0) : "0"}%
             </span>
             <span className="text-slate-400 font-normal">{isRTL ? "من إجمالي الدخل" : "of total revenue"}</span>
           </div>
@@ -600,6 +668,18 @@ export default function DoctorFinancePage() {
         >
           <FileText size={15} />
           <span>{isRTL ? "قائمة الدخل والأرباح (P&L)" : "P&L Statement"}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("fixed")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === "fixed"
+              ? "bg-white dark:bg-[#131E2E] text-indigo-600 dark:text-indigo-400 shadow-xs"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <Repeat size={15} />
+          <span>{isRTL ? "التكاليف الثابتة والقوالب" : "Fixed Costs & Templates"}</span>
         </button>
       </div>
 
@@ -931,15 +1011,15 @@ export default function DoctorFinancePage() {
       {activeTab === "pnl" && (
         <ProfitLossStatement
           monthName={isRTL ? currentRecord.monthNameAr : currentRecord.monthNameEn}
-          grossRevenue={grossRevenue}
-          totalExpenses={totalExpenses}
-          netProfit={netProfit}
-          profitMargin={profitMargin}
-          expenses={currentRecord.expenses}
-          revenues={currentRecord.revenues}
+          data={plData}
+          loading={plLoading}
+          unavailable={plUnavailable}
           isRTL={isRTL}
         />
       )}
+
+      {/* TAB 5: RECURRING FIXED-COST TEMPLATES */}
+      {activeTab === "fixed" && <FixedCostTemplates isRTL={isRTL} />}
 
       {/* Expense Modal */}
       <ExpenseModal
@@ -948,6 +1028,7 @@ export default function DoctorFinancePage() {
         onSave={handleSaveExpense}
         isRTL={isRTL}
         initialData={editingExpense}
+        categories={expenseCategories}
       />
 
       {/* Revenue Modal */}

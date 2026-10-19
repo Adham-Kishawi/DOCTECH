@@ -25,6 +25,7 @@ import {
   PaymentCollectionModal,
   PaymentAccount,
 } from "@/components/secretary/finance/PaymentCollectionModal";
+import { CashDrawerPanel } from "@/components/secretary/finance/CashDrawerPanel";
 
 interface PaymentRecord {
   id: string;
@@ -355,6 +356,9 @@ export default function SecretaryFinancePage() {
           </button>
         </div>
       </div>
+
+      {/* Cash drawer — open/close the day's till and reconcile the count */}
+      <CashDrawerPanel isRTL={isRTL} />
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

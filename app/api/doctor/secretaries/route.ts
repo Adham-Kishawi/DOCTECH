@@ -1,382 +1,239 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { ApiError, withSession, PERMISSIONS } from "@/lib/apiAuth";
+import { ALL_PERMISSION_IDS } from "@/lib/permissions";
 
-const AVAILABLE_PERMISSIONS = [
-  "all",
-  "appointments",
-  "patients",
-  "billing",
-  "whatsapp",
-  "reports",
-] as const;
+export const dynamic = "force-dynamic";
 
+/** Status is unified to ACTIVE | INACTIVE (plan §6.6 — no more "SUSPENDED"). */
+const VALID_STATUSES = ["ACTIVE", "INACTIVE"] as const;
+type StaffStatus = (typeof VALID_STATUSES)[number];
 
-export async function GET() {
-  try {
-    const { userId } = await auth();
+const SELECT_FIELDS =
+  "id, clerk_user_id, email, name, phone, permissions, avatar_url, status, clinic_id, created_at, updated_at";
 
-    if (!userId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized",
-        },
-        { status: 401 }
-      );
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Accept the granular catalog plus the `all` master switch. */
+function normalizePermissions(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return null;
+  if (!Array.isArray(raw)) return null;
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") return null;
+    const key = item.trim();
+    if (key === "all" || ALL_PERMISSION_IDS.includes(key)) {
+      if (!out.includes(key)) out.push(key);
+    } else {
+      return null;
     }
+  }
+  return out;
+}
 
-    // Get the doctor linked to the current Clerk account.
-    const { data: doctor, error: doctorError } = await supabase
-      .from("doctors")
-      .select("id, clinic_id")
-      .eq("clerk_user_id", userId)
-      .maybeSingle();
-
-    if (doctorError) {
-      throw new Error(doctorError.message);
-    }
-
-    if (!doctor) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Doctor profile not found",
-        },
-        { status: 404 }
-      );
-    }
-
-    // Get all secretaries belonging to the doctor's clinic.
-    const { data: secretaries, error: secretariesError } = await supabase
+export const GET = withSession(
+  async (_request, session) => {
+    const { data: secretaries, error } = await supabase
       .from("secretaries")
-      .select(
-        "id, clerk_user_id, email, name, phone, permissions, avatar_url, status, clinic_id, created_at, updated_at"
-      )
-      .eq("clinic_id", doctor.clinic_id)
+      .select(SELECT_FIELDS)
+      .eq("clinic_id", session.clinicId)
       .order("created_at", { ascending: false });
 
-    if (secretariesError) {
-      throw new Error(secretariesError.message);
-    }
+    if (error) throw new ApiError(500, error.message);
 
-    return NextResponse.json({
-      success: true,
-      users: secretaries ?? [],
-    });
-  } catch (error) {
-    console.error("Get secretaries error:", error);
+    return NextResponse.json({ success: true, users: secretaries ?? [] });
+  },
+  { permission: PERMISSIONS.STAFF_VIEW }
+);
 
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load staff accounts",
-      },
-      { status: 500 }
-    );
-  }
-}
+/**
+ * Create a staff member.
+ *
+ * 1. Real Clerk user. 2. Real Supabase secretary row scoped to the doctor's
+ * clinic. If the DB insert fails the Clerk user is rolled back.
+ */
+export const POST = withSession(
+  async (request, session) => {
+    let createdClerkUserId: string | null = null;
 
+    try {
+      const body = await request.json();
+      const { name, email, phone, password, permissions } = body;
 
+      if (
+        typeof name !== "string" ||
+        !name.trim() ||
+        typeof email !== "string" ||
+        !EMAIL_RE.test(email.trim())
+      ) {
+        throw new ApiError(422, "A valid name and email are required.");
+      }
 
+      if (typeof password !== "string") {
+        throw new ApiError(422, "Password is required.");
+      }
+      if (password.length < 15) throw new ApiError(422, "Password must be at least 15 characters.");
+      if (!/[A-Z]/.test(password)) throw new ApiError(422, "Password must contain an uppercase letter.");
+      if (!/[a-z]/.test(password)) throw new ApiError(422, "Password must contain a lowercase letter.");
+      if (!/[0-9]/.test(password)) throw new ApiError(422, "Password must contain a number.");
+      if (!/[^A-Za-z0-9]/.test(password)) throw new ApiError(422, "Password must contain a special character.");
 
- 
+      if (phone !== undefined && phone !== null && typeof phone !== "string") {
+        throw new ApiError(400, "Phone must be a string");
+      }
 
+      const requestedPermissions = normalizePermissions(permissions) ?? ["appointments", "patients"];
+      const normalizedEmail = email.trim().toLowerCase();
 
-
-
-
-export async function POST(request: Request) {
-  let createdClerkUserId: string | null = null;
-
-  try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized",
-        },
-        { status: 401 }
-      );
-    }
-
-    const body = await request.json();
-
-    const {
-      name,
-      email,
-      phone,
-      password,
-      permissions,
-    } = body;
-
-    if (
-      typeof name !== "string" ||
-      !name.trim() ||
-      typeof email !== "string" ||
-      !email.trim() ||
-      typeof password !== "string"
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Name, email, and password are required.",
-        },
-        { status: 422 }
-      );
-    }
-
-    if (password.length < 15) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Password must be at least 15 characters.",
-        },
-        { status: 422 }
-      );
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Password must contain at least one uppercase letter.",
-        },
-        { status: 422 }
-      );
-    }
-
-    if (!/[a-z]/.test(password)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Password must contain at least one lowercase letter.",
-        },
-        { status: 422 }
-      );
-    }
-
-    if (!/[0-9]/.test(password)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Password must contain at least one number.",
-        },
-        { status: 422 }
-      );
-    }
-
-    if (!/[^A-Za-z0-9]/.test(password)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Password must contain at least one special character.",
-        },
-        { status: 422 }
-      );
-    }
-    if (phone !== undefined && phone !== null && typeof phone !== "string") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Phone must be a string",
-        },
-        { status: 400 }
-      );
-    }
-
-    const requestedPermissions = Array.isArray(permissions)
-      ? permissions
-      : ["appointments", "patients"];
-
-    const invalidPermission = requestedPermissions.find(
-      (permission) =>
-        typeof permission !== "string" ||
-        !AVAILABLE_PERMISSIONS.includes(
-          permission as (typeof AVAILABLE_PERMISSIONS)[number]
-        )
-    );
-
-    if (invalidPermission) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid permission",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Get the doctor linked to the current Clerk account.
-    const { data: doctor, error: doctorError } = await supabase
-      .from("doctors")
-      .select("id, clinic_id")
-      .eq("clerk_user_id", userId)
-      .maybeSingle();
-
-    if (doctorError) {
-      throw new Error(doctorError.message);
-    }
-
-    if (!doctor) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Doctor profile not found",
-        },
-        { status: 404 }
-      );
-    }
-
-    // Prevent duplicate Secretary records inside DOCTECH.
-    const { data: existingSecretary, error: existingSecretaryError } =
-      await supabase
+      // Duplicate check is PER-CLINIC (plan §6.6): the same email may staff two
+      // different clinics.
+      const { data: existing, error: existingError } = await supabase
         .from("secretaries")
         .select("id")
-        .eq("email", email.trim().toLowerCase())
+        .eq("clinic_id", session.clinicId)
+        .eq("email", normalizedEmail)
         .maybeSingle();
 
-    if (existingSecretaryError) {
-      throw new Error(existingSecretaryError.message);
-    }
+      if (existingError) throw new ApiError(500, existingError.message);
+      if (existing) throw new ApiError(409, "A staff account with this email already exists in this clinic");
 
-    if (existingSecretary) {
+      const client = await clerkClient();
+      let clerkUser;
+      try {
+        clerkUser = await client.users.createUser({
+          emailAddress: [normalizedEmail],
+          password,
+          firstName: name.trim(),
+        });
+        createdClerkUserId = clerkUser.id;
+      } catch (clerkError: unknown) {
+        const code = (clerkError as { errors?: { code?: string }[] })?.errors?.[0]?.code;
+        if (code === "form_password_pwned") {
+          throw new ApiError(422, "This password has appeared in a data breach. Choose a different password.");
+        }
+        if (code === "form_password_length_too_short") {
+          throw new ApiError(422, "Password must be at least 15 characters.");
+        }
+        if (code === "form_identifier_exists" || code === "form_email_address_exists") {
+          throw new ApiError(409, "An account with this email already exists.");
+        }
+        console.error("Clerk create user error:", clerkError);
+        throw new ApiError(422, "Unable to create the staff account. Please try again.");
+      }
+
+      const { data: secretary, error: secretaryError } = await supabase
+        .from("secretaries")
+        .insert({
+          clerk_user_id: clerkUser.id,
+          email: normalizedEmail,
+          name: name.trim(),
+          phone: phone?.trim() || null,
+          permissions: requestedPermissions,
+          status: "ACTIVE",
+          clinic_id: session.clinicId,
+        })
+        .select(SELECT_FIELDS)
+        .single();
+
+      if (secretaryError) {
+        // Roll back the Clerk account if the database insert fails.
+        await client.users.deleteUser(createdClerkUserId).catch(() => {});
+        createdClerkUserId = null;
+        throw new ApiError(500, secretaryError.message);
+      }
+
       return NextResponse.json(
-        {
-          success: false,
-          error: "A staff account with this email already exists",
-        },
-        { status: 409 }
+        { success: true, message: "Staff account created successfully", user: secretary },
+        { status: 201 }
       );
+    } catch (error) {
+      if (createdClerkUserId) {
+        try {
+          const client = await clerkClient();
+          await client.users.deleteUser(createdClerkUserId);
+        } catch (rollbackError) {
+          console.error("Failed to rollback Clerk user:", rollbackError);
+        }
+      }
+      throw error;
+    }
+  },
+  { permission: PERMISSIONS.STAFF_MANAGE }
+);
+
+/** Update name, phone, permissions and/or status of a staff member. */
+export const PUT = withSession(
+  async (request, session) => {
+    const body = await request.json();
+    const id = String(body?.id || "");
+    if (!id) throw new ApiError(400, "id is required");
+
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+    if (body.name !== undefined) {
+      if (typeof body.name !== "string" || !body.name.trim()) throw new ApiError(422, "Name cannot be empty");
+      payload.name = body.name.trim();
+    }
+    if (body.phone !== undefined) {
+      if (body.phone !== null && typeof body.phone !== "string") throw new ApiError(400, "Phone must be a string");
+      payload.phone = typeof body.phone === "string" ? body.phone.trim() || null : null;
+    }
+    if (body.permissions !== undefined) {
+      const normalized = normalizePermissions(body.permissions);
+      if (normalized === null) throw new ApiError(400, "Invalid permission");
+      payload.permissions = normalized;
+    }
+    if (body.status !== undefined) {
+      if (!VALID_STATUSES.includes(body.status)) throw new ApiError(422, "Invalid status");
+      payload.status = body.status as StaffStatus;
     }
 
-    const client = await clerkClient();
-
-
-// Create the real Clerk account.
-let clerkUser;
-
-try {
-  clerkUser = await client.users.createUser({
-    emailAddress: [email.trim().toLowerCase()],
-    password,
-    firstName: name.trim(),
-  });
-
-  createdClerkUserId = clerkUser.id;
-} catch (clerkError: any) {
-  const clerkErrorCode = clerkError?.errors?.[0]?.code;
-
-  if (clerkErrorCode === "form_password_pwned") {
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          "This password has appeared in a data breach. Please choose a different password.",
-      },
-      { status: 422 }
-    );
-  }
-
-  if (clerkErrorCode === "form_password_length_too_short") {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Password must be at least 15 characters.",
-      },
-      { status: 422 }
-    );
-  }
- 
-  if (
-    clerkErrorCode === "form_identifier_exists" ||
-    clerkErrorCode === "form_email_address_exists"
-  ) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "An account with this email already exists.",
-      },
-      { status: 409 }
-    );
-  }
-
-  console.error("Clerk create user error:", clerkError);
-
-  return NextResponse.json(
-    {
-      success: false,
-      error: "Unable to create the staff account. Please try again.",
-    },
-    { status: 422 }
-  );
-}
-    // Create the Secretary record linked to the doctor's clinic.
-    const { data: secretary, error: secretaryError } = await supabase
+    const { data, error } = await supabase
       .from("secretaries")
-      .insert({
-        clerk_user_id: clerkUser.id,
-        email: email.trim().toLowerCase(),
-        name: name.trim(),
-        phone: phone?.trim() || null,
-        permissions: requestedPermissions,
-        status: "ACTIVE",
-        clinic_id: doctor.clinic_id,
-      })
-      .select(
-        "id, clerk_user_id, email, name, phone, permissions, avatar_url, status, clinic_id, created_at"
-      )
-      .single();
+      .update(payload)
+      .eq("id", id)
+      .eq("clinic_id", session.clinicId)
+      .select(SELECT_FIELDS)
+      .maybeSingle();
 
-    if (secretaryError) {
-      // Roll back the Clerk account if the database insert fails.
-      await client.users.deleteUser(createdClerkUserId);
-      createdClerkUserId = null;
+    if (error) throw new ApiError(500, error.message);
+    if (!data) throw new ApiError(404, "Staff member not found");
 
-      throw new Error(secretaryError.message);
-    }
+    return NextResponse.json({ success: true, user: data });
+  },
+  { permission: PERMISSIONS.STAFF_MANAGE }
+);
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Staff account created successfully",
-        user: secretary,
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("Create secretary error:", error);
+/** Soft-delete a staff member and remove their Clerk login. */
+export const DELETE = withSession(
+  async (request, session) => {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    if (!id) throw new ApiError(400, "id is required");
 
-    // Safety rollback in case an unexpected error happens after
-    // the Clerk user was created.
-    if (createdClerkUserId) {
+    const { data, error } = await supabase
+      .from("secretaries")
+      .update({ status: "INACTIVE", updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("clinic_id", session.clinicId)
+      .select("id, clerk_user_id")
+      .maybeSingle();
+
+    if (error) throw new ApiError(500, error.message);
+    if (!data) throw new ApiError(404, "Staff member not found");
+
+    // Best-effort Clerk removal; the DB record (and its history) stays.
+    if (data.clerk_user_id) {
       try {
         const client = await clerkClient();
-        await client.users.deleteUser(createdClerkUserId);
-      } catch (rollbackError) {
-        console.error(
-          "Failed to rollback Clerk user:",
-          rollbackError
-        );
+        await client.users.deleteUser(String(data.clerk_user_id));
+      } catch (clerkError) {
+        console.error("Failed to delete Clerk user (row already deactivated):", clerkError);
       }
     }
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to create staff account";
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 }
-    );
-  }
-}
+    return NextResponse.json({ success: true, archivedId: id });
+  },
+  { permission: PERMISSIONS.STAFF_MANAGE }
+);

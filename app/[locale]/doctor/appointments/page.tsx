@@ -15,29 +15,18 @@ import {
   Calendar,
 } from "lucide-react";
 
-interface Appointment {
-  id: string;
-  time: string;
-  date: string;
-  rawDate: string;
-  patientName: string;
-  patientPhone: string;
-  type: string;
-  status: "confirmed" | "scheduled" | "completed" | "cancelled";
-  notes: string;
-  fee?: number;
-}
+import type { AppointmentListItem } from "@/types/index";
 
 export default function DoctorAppointmentsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+  const [selectedApt, setSelectedApt] = useState<AppointmentListItem | null>(null);
 
   useEffect(() => {
     async function loadAppointments() {

@@ -25,8 +25,8 @@ export class MetaWhatsAppClient {
   // Send standard text message
   async sendTextMessage({ to, text }: SendMessageParams) {
     if (!this.phoneNumberId || !this.accessToken) {
-      console.warn("Meta WhatsApp API keys not configured. Simulating message dispatch:", { to, text });
-      return { success: true, simulated: true, messageId: `wamid_sim_${Date.now()}` };
+      // Fail closed: a "sent" message the Cloud API never saw is a lie.
+      throw new Error("WhatsApp Cloud API is not configured (WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN missing)");
     }
 
     const cleanPhone = to.replace(/[^0-9]/g, "");
@@ -74,7 +74,7 @@ export class MetaWhatsAppClient {
 
   // Mark incoming WhatsApp message as read
   async markAsRead(messageId: string) {
-    if (!this.phoneNumberId || !this.accessToken) return { success: true, simulated: true };
+    if (!this.phoneNumberId || !this.accessToken) return { success: false, skipped: "not_configured" };
 
     try {
       await fetch(

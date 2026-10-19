@@ -1,64 +1,30 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
+import { getClinicTimezone } from "@/lib/schedule/availabilityService";
+import { formatInClinicZone } from "@/lib/schedule/clinicTime";
+import { createNotification } from "@/lib/serverNotifications";
 
-const DEFAULT_MOCK_MESSAGES = [
-  {
-    id: "seed-msg-1",
-    channelId: "doctor_secretary_direct",
-    senderRole: "secretary",
-    senderName: "Sarah Jenkins (Reception)",
-    content: "Good morning Doctor! Patient Kareem Tarek just sent a report about fever. I triaged it as High urgency.",
-    isRead: true,
-    sentAt: "09:15 AM",
-    clinicId: "cln-001",
-  },
-  {
-    id: "seed-msg-2",
-    channelId: "doctor_secretary_direct",
-    senderRole: "doctor",
-    senderName: "Dr. Ahmed Hossam",
-    content: "Thanks Sarah, reviewing his case right now. Please have his CBC report ready.",
-    isRead: true,
-    sentAt: "09:18 AM",
-    clinicId: "cln-001",
-  },
-  {
-    id: "seed-msg-3",
-    channelId: "doctor_secretary_direct",
-    senderRole: "secretary",
-    senderName: "Sarah Jenkins (Reception)",
-    content: "Patient Kareem Tarek fever report is uploaded and attached to his case file.",
-    isRead: true,
-    sentAt: "09:20 AM",
-    clinicId: "cln-001",
-  },
-  {
-    id: "seed-msg-4",
-    channelId: "broadcast",
-    senderRole: "doctor",
-    senderName: "Dr. Ahmed Hossam",
-    content: "Team meeting today at 04:30 PM in Conference Room to review new WhatsApp booking flows.",
-    isRead: true,
-    sentAt: "08:45 AM",
-    clinicId: "cln-001",
-  },
-];
+interface MessageRow {
+  id: string;
+  channel_id: string | null;
+  sender_role: string | null;
+  sender_name: string | null;
+  content: string;
+  is_read: boolean | null;
+  sent_at: string | null;
+  clinic_id: string | null;
+}
 
 export async function GET(request: Request) {
   try {
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.WHATSAPP_VIEW });
 
     const { searchParams } = new URL(request.url);
     const channelId = searchParams.get("channelId");
     const clinicId = session.clinicId;
+    // Chat timestamps are rendered here, so they follow the clinic's clock.
+    const timeZone = await getClinicTimezone(clinicId);
 
     let query = supabase
       .from("internal_messages")
@@ -73,42 +39,41 @@ export async function GET(request: Request) {
     const { data, error } = await query;
 
     if (error) {
-      console.warn("Internal messages query warning/fallback:", error.message);
-      let messages = DEFAULT_MOCK_MESSAGES.map((m) => ({ ...m, clinicId }));
-      if (channelId) {
-        messages = messages.filter((m) => m.channelId === channelId);
-      }
-      return NextResponse.json({ success: true, messages, clinicId });
+      console.error("Internal messages query failed:", error.message);
+      return NextResponse.json(
+        { success: false, error: "Failed to load messages" },
+        { status: 500 }
+      );
     }
 
-    const messages = (data || []).map((m: any) => ({
+    const messages = (data || []).map((m: MessageRow) => ({
       id: m.id,
-      channelId: m.channel_id || m.channelId,
-      senderRole: m.sender_role || m.senderRole,
-      senderName: m.sender_name || m.senderName,
+      channelId: m.channel_id || "doctor_secretary_direct",
+      senderRole: m.sender_role === "doctor" ? "doctor" : "secretary",
+      senderName: m.sender_name || "",
       content: m.content,
       isRead: Boolean(m.is_read),
-      sentAt: m.sent_at ? new Date(m.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Now",
+      sentAt: m.sent_at
+        ? formatInClinicZone(
+            m.sent_at,
+            timeZone,
+            { hour: "2-digit", minute: "2-digit" },
+            "en-US",
+            "Now"
+          )
+        : "Now",
       clinicId: m.clinic_id || clinicId,
     }));
 
     return NextResponse.json({ success: true, messages, clinicId });
   } catch (error) {
-    console.error("Messages GET error:", error);
-    return NextResponse.json({ success: false, error: "Failed to fetch messages" }, { status: 500 });
+    return toErrorResponse(error, "Messages GET error:");
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.WHATSAPP_SEND });
 
     const body = await request.json();
     const { channelId = "doctor_secretary_direct", content } = body;
@@ -117,19 +82,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Content is required" }, { status: 400 });
     }
 
+    if (typeof channelId !== "string" || !/^[\w-]{1,64}$/.test(channelId)) {
+      return NextResponse.json({ success: false, error: "Invalid channelId" }, { status: 400 });
+    }
+
     // Authenticated identity: sender cannot spoof role or name
     const senderRole = session.role;
     const senderName = session.user.name || (session.role === "doctor" ? "Doctor" : "Receptionist");
     const clinicId = session.clinicId;
+    const timeZone = await getClinicTimezone(clinicId);
+
+    // The optimistic row rendered by the sender keeps its client id, so it is
+    // honoured here when it is a safe, already-namespaced identifier.
+    const clientId =
+      typeof body.id === "string" && /^msg-[\w-]{1,56}$/.test(body.id) ? body.id : null;
 
     const newMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: clientId || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       channelId,
       senderRole,
       senderName,
       content: content.trim(),
       isRead: false,
-      sentAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      sentAt: formatInClinicZone(new Date(), timeZone, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
       clinicId,
     };
 
@@ -154,23 +132,39 @@ export async function POST(request: Request) {
       );
     }
 
+    // Tell the other side of the conversation. A failed notification never
+    // fails the message itself.
+    try {
+      const recipientRole = senderRole === "doctor" ? "secretary" : "doctor";
+      await createNotification({
+        clinicId,
+        role: recipientRole,
+        type: "INTERNAL_MESSAGE",
+        title:
+          senderRole === "secretary"
+            ? `New direct message from ${senderName}`
+            : `New clinical note from ${senderName}`,
+        titleAr:
+          senderRole === "secretary"
+            ? `رسالة مباشرة جديدة من ${senderName}`
+            : `توجيه سريري جديد من ${senderName}`,
+        body: newMessage.content.slice(0, 200),
+        bodyAr: newMessage.content.slice(0, 200),
+        link: "communications",
+      });
+    } catch (notifErr) {
+      console.warn("Failed creating internal message notification:", notifErr);
+    }
+
     return NextResponse.json({ success: true, message: newMessage });
   } catch (error) {
-    console.error("Messages POST error:", error);
-    return NextResponse.json({ success: false, error: "Failed to post message" }, { status: 500 });
+    return toErrorResponse(error, "Messages POST error:");
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.WHATSAPP_SEND });
 
     const body = await request.json();
     const { channelId } = body;
@@ -188,9 +182,8 @@ export async function PATCH(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, message: "Marked as read" });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Messages PATCH error:", error);
-    return NextResponse.json({ success: false, error: "Failed to update messages" }, { status: 500 });
+    return toErrorResponse(error, "Messages PATCH error:");
   }
 }

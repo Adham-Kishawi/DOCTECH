@@ -20,38 +20,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ImageCropperModal } from "@/components/shared/ImageCropperModal";
-
-type DoctorProfile = {
-  id: string;
-  email: string;
-  name: string;
-  specialty: string | null;
-  avatar_url: string | null;
-  clinic_id: string;
-};
-
-type Clinic = {
-  id: string;
-  name: string;
-  phone: string | null;
-  address: string | null;
-  logo_url?: string | null;
-};
-
-type Schedule = {
-  id: string;
-  day_of_week: number;
-  start_time: string;
-  end_time: string;
-  slot_duration: number;
-  is_active: boolean;
-};
+import type { ClinicRow, DoctorRow, DoctorScheduleRow } from "@/types/index";
 
 type ProfileResponse = {
   success: boolean;
-  user: DoctorProfile;
-  clinic: Clinic | null;
-  schedules: Schedule[];
+  user: DoctorRow;
+  clinic: ClinicRow | null;
+  schedules: DoctorScheduleRow[];
   error?: string;
 };
 
@@ -117,7 +92,7 @@ export default function DoctorProfilePage() {
   const [clinicAddress, setClinicAddress] = useState("");
 
   // Schedules
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [schedules, setSchedules] = useState<DoctorScheduleRow[]>([]);
 
   useEffect(() => {
     async function loadProfile() {

@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import { User, LogOut,  ChevronDown } from "lucide-react";
-import { clearSession, setSession } from "@/stores/authStore";
 import { toast } from "sonner";
 
 interface UserMenuProps {
@@ -36,7 +35,7 @@ export function UserMenu({
 
   const handleSignOut = async () => {
     try {
-      clearSession();
+      document.cookie = "doctech_role=; path=/; max-age=0; SameSite=Lax";
 
       await signOut();
 

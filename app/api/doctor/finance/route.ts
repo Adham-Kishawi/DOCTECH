@@ -1,60 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
+import { getClinicTimezone } from "@/lib/schedule/availabilityService";
+import { clinicCalendarDate, formatInClinicZone, wallDate } from "@/lib/schedule/clinicTime";
+import { fromPiastres } from "@/lib/money";
+import type { ExpenseItem, MonthFinancialRecord, RevenueItem } from "@/types/index";
 
 export const dynamic = "force-dynamic";
-
-export interface ExpenseItem {
-  id: string;
-  category: "SALARIES" | "UTILITIES" | "RENT" | "SUPPLIES" | "LAB" | "MAINTENANCE" | "MARKETING" | "TAXES" | "MISC";
-  categoryNameEn: string;
-  categoryNameAr: string;
-  titleEn: string;
-  titleAr: string;
-  amount: number;
-  date: string;
-  paymentMethod: "CASH" | "CARD" | "BANK_TRANSFER";
-  paidTo?: string;
-  notes?: string;
-  isRecurring?: boolean;
-}
-
-export interface RevenueItem {
-  id: string;
-  type: "CONSULTATION" | "FOLLOW_UP" | "PROCEDURE" | "REPORT" | "OTHER";
-  typeNameEn: string;
-  typeNameAr: string;
-  patientName: string;
-  patientNameAr: string;
-  amount: number;
-  date: string;
-  time: string;
-  paymentMethod: "CASH" | "CARD" | "BANK_TRANSFER" | "INSURANCE";
-  status: "PAID" | "PENDING";
-}
-
-export interface MonthFinancialRecord {
-  monthKey: string; // "2026-09"
-  monthNameEn: string;
-  monthNameAr: string;
-  grossRevenue: number;
-  totalExpenses: number;
-  netProfit: number;
-  profitMargin: number; // percentage
-  totalVisits: number;
-  avgPerPatient: number;
-  revenueGrowthMoM: number;
-  expensesGrowthMoM: number;
-  expenses: ExpenseItem[];
-  revenues: RevenueItem[];
-  weeklyTrend: {
-    week: string;
-    weekAr: string;
-    revenue: number;
-    expenses: number;
-    netProfit: number;
-  }[];
-}
 
 const MONTH_NAMES_EN = [
   "January", "February", "March", "April", "May", "June",
@@ -80,10 +32,14 @@ const EXPENSE_CATEGORY_NAMES: Record<string, { en: string; ar: string }> = {
 
 export async function GET(request: Request) {
   try {
-    const session = await getClinicSession();
+    const session = await requireSession({ permission: PERMISSIONS.FINANCE_VIEW });
     const { searchParams } = new URL(request.url);
-    const selectedMonth = searchParams.get("month") || new Date().toISOString().slice(0, 7);
-    const clinicId = session?.clinicId || searchParams.get("clinicId");
+    // Tenant comes from the session ONLY — never from the query string.
+    const clinicId = session.clinicId;
+    // Month and day buckets below are clinic calendar boundaries; deriving them
+    // from UTC puts the first hours of the clinic's month into the previous one.
+    const timeZone = await getClinicTimezone(clinicId);
+    const selectedMonth = searchParams.get("month") || wallDate(new Date(), timeZone).slice(0, 7);
     const doctorId = session?.role === "doctor" ? session.user.id : searchParams.get("doctorId");
 
     const [yearStr, monthStr] = selectedMonth.split("-");
@@ -126,17 +82,28 @@ export async function GET(request: Request) {
     const allExps = expenses || [];
 
     // Filter for current selected month
-    const monthApts = allApts.filter((apt: any) => apt.date && apt.date.startsWith(selectedMonth));
-    const monthExps = allExps.filter((exp: any) => exp.date && exp.date.startsWith(selectedMonth));
+    // Month key read in the clinic's calendar. `date.startsWith(monthKey)` compares
+    // against the UTC month, so anything booked in the first hours of the
+    // clinic's month is filed under the previous one.
+    const monthOf = (value: unknown) =>
+      value ? clinicCalendarDate(value as string, timeZone).slice(0, 7) : "";
 
-    // Previous month calculation for MoM
-    const prevDate = new Date(year, monthIndex - 1, 1);
-    const prevMonthKey = prevDate.toISOString().slice(0, 7);
-    const prevApts = allApts.filter((apt: any) => apt.date && apt.date.startsWith(prevMonthKey));
-    const prevExps = allExps.filter((exp: any) => exp.date && exp.date.startsWith(prevMonthKey));
+    const monthApts = allApts.filter((apt: any) => monthOf(apt.date) === selectedMonth);
+    const monthExps = allExps.filter((exp: any) => monthOf(exp.date) === selectedMonth);
+
+    // Previous month as plain calendar arithmetic on the key. Going through
+    // `new Date(...).toISOString()` re-introduces the server's zone.
+    const prevM = monthIndex === 0 ? 12 : monthIndex;
+    const prevY = monthIndex === 0 ? year - 1 : year;
+    const prevMonthKey = `${prevY}-${String(prevM).padStart(2, "0")}`;
+    const prevApts = allApts.filter((apt: any) => monthOf(apt.date) === prevMonthKey);
+    const prevExps = allExps.filter((exp: any) => monthOf(exp.date) === prevMonthKey);
 
     const prevGross = prevApts.reduce((s: number, a: any) => s + (Number(a.amount_paid) || 0), 0);
-    const prevExpenses = prevExps.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
+    const prevExpenses = prevExps.reduce(
+      (s: number, e: any) => s + fromPiastres(Number(e.amount) || 0),
+      0
+    );
 
     // Format current month expenses
     const formattedExpenses: ExpenseItem[] = monthExps.map((e: any) => {
@@ -149,8 +116,9 @@ export async function GET(request: Request) {
         categoryNameAr: names.ar,
         titleEn: e.title,
         titleAr: e.title_ar || e.title,
-        amount: Number(e.amount) || 0,
-        date: e.date?.split("T")[0] || e.date,
+        // expenses.amount is stored in piastres; the record below is in EGP.
+        amount: fromPiastres(Number(e.amount) || 0),
+        date: clinicCalendarDate(e.date, timeZone, e.date || ""),
         paymentMethod: (e.payment_method || "CASH") as ExpenseItem["paymentMethod"],
         paidTo: e.paid_to || undefined,
         notes: e.notes || undefined,
@@ -160,7 +128,6 @@ export async function GET(request: Request) {
 
     // Format current month revenues
     const formattedRevenues: RevenueItem[] = monthApts.map((a: any) => {
-      const aptDate = a.date ? new Date(a.date) : new Date();
       const amount = Number(a.amount_paid) || Number(a.fee) || 0;
       return {
         id: a.id,
@@ -170,8 +137,14 @@ export async function GET(request: Request) {
         patientName: a.patients?.name || "Patient",
         patientNameAr: a.patients?.name || "مريض",
         amount,
-        date: a.date?.split("T")[0] || "",
-        time: aptDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        date: clinicCalendarDate(a.date, timeZone),
+        time: formatInClinicZone(
+          a.date,
+          timeZone,
+          { hour: "2-digit", minute: "2-digit" },
+          "en-US",
+          ""
+        ),
         paymentMethod: (a.payment_method || "CASH") as RevenueItem["paymentMethod"],
         status: (Number(a.amount_paid) >= Number(a.fee) && Number(a.fee) > 0) ? "PAID" : "PENDING",
       };
@@ -249,7 +222,6 @@ export async function GET(request: Request) {
       allMonths,
     });
   } catch (error) {
-    console.error("Doctor finance API error:", error);
-    return NextResponse.json({ success: false, error: "Failed to load financial records" }, { status: 500 });
+    return toErrorResponse(error, "Doctor finance API error");
   }
 }

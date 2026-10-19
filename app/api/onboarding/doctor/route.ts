@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 // import { supabase } from "@/lib/supabase";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { toErrorResponse } from "@/lib/apiAuth";
 
 export async function POST(req: Request) {
   try {
@@ -165,17 +166,6 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Doctor onboarding error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to complete clinic setup",
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Doctor onboarding error:");
   }
 }

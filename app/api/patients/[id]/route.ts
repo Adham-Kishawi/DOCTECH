@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
 
 const PatchPatientSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -19,14 +19,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.PATIENTS_VIEW });
 
     const { data: patient, error } = await supabase
       .from("patients")
@@ -79,8 +72,7 @@ export async function GET(
       patient,
     });
   } catch (error) {
-    console.error("Patient GET [id] error:", error);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return toErrorResponse(error, "Patient GET [id] error:");
   }
 }
 
@@ -90,14 +82,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.PATIENTS_MANAGE });
 
     const rawBody = await request.json();
     const parsed = PatchPatientSchema.safeParse(rawBody);
@@ -130,7 +115,11 @@ export async function PATCH(
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      console.error("Update patient error:", error);
+      return NextResponse.json(
+        { success: false, error: "Failed to update patient" },
+        { status: 500 }
+      );
     }
 
     if (!data) {
@@ -139,7 +128,6 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, patient: data });
   } catch (error) {
-    console.error("Patient PATCH [id] error:", error);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return toErrorResponse(error, "Patient PATCH [id] error:");
   }
 }

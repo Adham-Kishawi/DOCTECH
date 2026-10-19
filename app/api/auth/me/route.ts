@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { toErrorResponse } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,17 +26,14 @@ export async function GET() {
         (e) => e.id === clerkUser.primaryEmailAddressId
       )?.emailAddress || clerkUser?.emailAddresses?.[0]?.emailAddress;
 
-    console.log("SERVER AUTH:", {
-      userId,
-      email: primaryEmail,
-    });
-
     // 1. Query doctor by clerk_user_id
-    let { data: doctor, error: doctorError } = await supabase
+    const { data: doctorById, error: doctorError } = await supabase
       .from("doctors")
       .select("id, clerk_user_id, email, name, specialty, avatar_url, clinic_id")
       .eq("clerk_user_id", userId)
       .maybeSingle();
+
+    let doctor = doctorById;
 
     if (doctorError) {
       throw new Error(doctorError.message);
@@ -67,11 +65,13 @@ export async function GET() {
     }
 
     // 2. Query secretary by clerk_user_id
-    let { data: secretary, error: secretaryError } = await supabase
+    const { data: secretaryById, error: secretaryError } = await supabase
       .from("secretaries")
       .select("id, clerk_user_id, email, name, phone, permissions, avatar_url, status, clinic_id")
       .eq("clerk_user_id", userId)
       .maybeSingle();
+
+    let secretary = secretaryById;
 
     if (secretaryError) {
       throw new Error(secretaryError.message);
@@ -109,15 +109,7 @@ export async function GET() {
       },
       { status: 403 }
     );
-  } catch (error: any) {
-    console.error("Auth me error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Internal error",
-      },
-      { status: 500 }
-    );
+  } catch (error) {
+    return toErrorResponse(error, "Auth me error");
   }
 }

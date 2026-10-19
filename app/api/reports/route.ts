@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
 
 const CreateReportSchema = z.object({
   patientId: z.string().optional(),
@@ -61,18 +61,13 @@ const PatchReportSchema = z.object({
   replyMethod: z.enum(["HUMAN", "AI"]).optional(),
   aiReply: z.string().max(10000).optional(),
   status: z.enum(["PENDING", "TRIAGED", "REVIEWED", "REPLIED", "CLOSED"]).optional(),
+  /** Reassigns the report to another doctor of the same clinic. */
+  doctorId: z.string().min(1).optional(),
 });
 
 export async function GET() {
   try {
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.REPORTS_VIEW });
 
     const { data, error } = await supabase
       .from("reports")
@@ -93,21 +88,13 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error("Reports GET error:", error);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return toErrorResponse(error, "Reports GET error:");
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.REPORTS_MANAGE });
 
     const body = await req.json();
     const parsed = CreateReportSchema.safeParse(body);
@@ -224,7 +211,7 @@ export async function POST(req: Request) {
     if (medicines && medicines.length > 0) metadataPayload.medicines = medicines;
 
     let finalDoctorReview = doctorReview || diagnosis || "";
-    let finalTriageNotes = triageNotes || "";
+    const finalTriageNotes = triageNotes || "";
 
     // Embed structured metadata if medicines or vitals exist
     if (Object.keys(metadataPayload).length > 0) {
@@ -289,21 +276,13 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Reports POST error:", error);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return toErrorResponse(error, "Reports POST error:");
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.REPORTS_MANAGE });
 
     const body = await req.json();
     const parsed = PatchReportSchema.safeParse(body);
@@ -315,7 +294,33 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const { id, ...updates } = parsed.data;
+    const { id, doctorId, ...rest } = parsed.data;
+    const updates: Record<string, unknown> = { ...rest };
+
+    if (doctorId) {
+      const { data: doctor, error: doctorError } = await supabase
+        .from("doctors")
+        .select("id")
+        .eq("id", doctorId)
+        .eq("clinic_id", session.clinicId)
+        .maybeSingle();
+
+      if (doctorError) {
+        console.error("Reports PATCH doctor lookup error:", doctorError);
+        return NextResponse.json(
+          { success: false, error: "Failed to validate the assigned doctor" },
+          { status: 500 }
+        );
+      }
+      if (!doctor) {
+        return NextResponse.json(
+          { success: false, error: "Doctor does not belong to this clinic" },
+          { status: 400 }
+        );
+      }
+      updates.doctor_id = doctorId;
+    }
+
     const { data, error } = await supabase
       .from("reports")
       .update(updates)
@@ -324,13 +329,16 @@ export async function PATCH(req: Request) {
       .select();
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      console.error("Update report error:", error);
+      return NextResponse.json(
+        { success: false, error: "Failed to update report" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error("Reports PATCH error:", error);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return toErrorResponse(error, "Reports PATCH error:");
   }
 }
 

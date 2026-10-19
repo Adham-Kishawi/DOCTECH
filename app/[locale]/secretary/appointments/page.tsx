@@ -17,25 +17,54 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { AppointmentListItem } from "@/types/index";
 
-interface Appointment {
-  id: string;
-  patientId?: string;
-  patientName: string;
-  patientPhone: string;
-  doctorId?: string;
-  doctorName: string;
-  doctorSpecialty?: string;
-  date: string;
-  time: string;
-  rawDate?: string;
-  duration?: number;
-  status: "confirmed" | "scheduled" | "completed" | "cancelled" | string;
-  type: string;
-  source: "MANUAL" | "AI" | "WHATSAPP" | string;
-  bookingStatus: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | string;
-  notes: string;
-  fee?: number;
+/**
+ * A PENDING_REVIEW request only reserves its slot until `expiresAt`; after that
+ * the exclusion constraint treats it as absent and the slot can be rebooked.
+ * This must match the server: availability releases exactly these holds.
+ */
+function holdState(expiresAt?: string | null): {
+  tone: "live" | "expired" | "unknown";
+  label: (isRTL: boolean) => string;
+} {
+  if (!expiresAt) {
+    return {
+      tone: "unknown",
+      label: (isRTL) => (isRTL ? "بلا تاريخ انتهاء" : "no expiry set"),
+    };
+  }
+
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms)) {
+    return {
+      tone: "unknown",
+      label: (isRTL) => (isRTL ? "بلا تاريخ انتهاء" : "no expiry set"),
+    };
+  }
+
+  if (ms <= 0) {
+    return {
+      tone: "expired",
+      label: (isRTL) =>
+        isRTL ? "انتهت — لم يعد محجوزاً" : "expired — slot released",
+    };
+  }
+
+  const hours = Math.floor(ms / 3_600_000);
+  const mins = Math.floor((ms % 3_600_000) / 60_000);
+
+  return {
+    tone: "live",
+    label: (isRTL) =>
+      hours > 0
+        ? isRTL
+          ? `يُحرَّر بعد ${hours} س`
+          : `frees in ${hours}h`
+        : isRTL
+          ? `يُحرَّر بعد ${mins} د`
+          : `frees in ${mins}m`,
+  };
 }
 
 export default function SecretaryAppointmentsPage() {
@@ -43,7 +72,7 @@ export default function SecretaryAppointmentsPage() {
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -68,19 +97,69 @@ export default function SecretaryAppointmentsPage() {
 
   const pendingAICount = appointments.filter((a) => a.bookingStatus === "PENDING_REVIEW").length;
 
-  const handleUpdateStatus = (id: string, newStatus: Appointment["status"]) => {
-    setAppointments((currentAppointments) =>
-      currentAppointments.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
+  /**
+ * Optimistic update against PATCH /api/appointments, rolled back on failure.
+ *
+ * Both handlers used to mutate local state only, so a refresh silently undid
+ * every approval and status change — a "confirmed" booking never left the
+ * pending state and its slot stayed held until the hold expired.
+ */
+const applyUpdate = async (
+    id: string,
+    patch: { status?: string; bookingStatus?: string },
+    changes: Partial<AppointmentListItem>,
+    successMsg: string
+  ) => {
+    let previous: AppointmentListItem | undefined;
+
+    setAppointments((cur) =>
+      cur.map((a) => {
+        if (a.id !== id) return a;
+        previous = a;
+        return { ...a, ...changes };
+      })
     );
-    toast.success(isRTL ? `تم تحديث حالة الموعد` : `Appointment status updated to ${newStatus}`);
+
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...patch }),
+      });
+      const json = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (!res.ok || !json.success) {
+        throw new Error(String(json.error || `HTTP ${res.status}`));
+      }
+      toast.success(successMsg);
+    } catch (err) {
+      console.error("Appointment update failed:", err);
+      if (previous) {
+        const snapshot = previous;
+        setAppointments((cur) => cur.map((a) => (a.id === id ? snapshot : a)));
+      }
+      toast.error(isRTL ? "تعذّر حفظ التغيير" : "Could not save the change");
+    }
+  };
+
+  const handleUpdateStatus = (id: string, newStatus: AppointmentListItem["status"]) => {
+    void applyUpdate(
+      id,
+      { status: newStatus },
+      { status: newStatus },
+      isRTL
+        ? `تم تحديث حالة الموعد إلى ${newStatus}`
+        : `Appointment status updated to ${newStatus}`
+    );
   };
 
   const handleApproveAI = (id: string) => {
-    setAppointments((currentAppointments) =>
-      currentAppointments.map((a) => (a.id === id ? { ...a, bookingStatus: "APPROVED", status: "confirmed" } : a))
-    );
-    toast.success(
-      isRTL ? "تم اعتماد الحجز وإرسال تأكيد بالواتساب للمريض ✅" : "Booking approved & confirmation sent via WhatsApp ✅"
+    void applyUpdate(
+      id,
+      { bookingStatus: "APPROVED", status: "CONFIRMED" },
+      { bookingStatus: "APPROVED", status: "confirmed", expiresAt: null },
+      isRTL
+        ? "تم اعتماد الحجز وإرسال تأكيد بالواتساب للمريض ✅"
+        : "Booking approved & confirmation sent via WhatsApp ✅"
     );
   };
 
@@ -236,11 +315,27 @@ export default function SecretaryAppointmentsPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white">{apt.patientName}</h3>
                     <span className="text-xs font-mono text-slate-400">({apt.patientPhone})</span>
-                    {apt.bookingStatus === "PENDING_REVIEW" && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-50 dark:bg-purple-950/40 text-purple-600 border border-purple-200">
-                        {isRTL ? "بانتظار المراجعة (واتساب)" : "Pending Review (WhatsApp)"}
-                      </span>
-                    )}
+                    {apt.bookingStatus === "PENDING_REVIEW" && (() => {
+                      const hold = holdState(apt.expiresAt);
+                      return (
+                        <span
+                          title={
+                            isRTL
+                              ? "هذا الطلب يحجز الموعد مؤقتاً حتى تاريخ الانتهاء"
+                              : "This request holds the slot only until it expires"
+                          }
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                            hold.tone === "expired"
+                              ? "bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700"
+                              : "bg-purple-50 dark:bg-purple-950/40 text-purple-600 border-purple-200"
+                          }`}
+                        >
+                          {isRTL ? "بانتظار المراجعة (واتساب)" : "Pending Review (WhatsApp)"}
+                          {" · "}
+                          {hold.label(isRTL)}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
@@ -275,7 +370,7 @@ export default function SecretaryAppointmentsPage() {
                 ) : (
                   <select
                     value={apt.status}
-                    onChange={(e) => handleUpdateStatus(apt.id, e.target.value as Appointment["status"])}
+                    onChange={(e) => handleUpdateStatus(apt.id, e.target.value as AppointmentListItem["status"])}
                     className="h-8 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0891B2]"
                   >
                     <option value="confirmed">{isRTL ? "مؤكد" : "Confirmed"}</option>

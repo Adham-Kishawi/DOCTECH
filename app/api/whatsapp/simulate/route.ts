@@ -1,17 +1,11 @@
 import { NextResponse } from "next/server";
 import { processHermesMessage } from "@/lib/ai/hermesAgent";
-import { createNotification } from "@/lib/notificationService";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { createNotification } from "@/lib/serverNotifications";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
 
 export async function POST(request: Request) {
   try {
-    const session = await getClinicSession();
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Active clinic session required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.WHATSAPP_SEND });
 
     const body = await request.json();
     const {
@@ -34,6 +28,7 @@ export async function POST(request: Request) {
       patientName,
       messageText: messageText.trim(),
       clinicContextPrompt: clinicContextPrompt || undefined,
+      clinicId: session.clinicId,
     });
 
     // If an appointment booking was requested, notify reception
@@ -60,10 +55,6 @@ export async function POST(request: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("WhatsApp simulation error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to process simulation" },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "WhatsApp simulation error");
   }
 }

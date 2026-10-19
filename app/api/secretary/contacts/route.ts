@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { toErrorResponse } from "@/lib/apiAuth";
 
 export async function GET() {
   try {
@@ -97,17 +98,6 @@ export async function GET() {
       contacts,
     });
   } catch (error) {
-    console.error("Get secretary contacts error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load clinic contacts",
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Get secretary contacts error:");
   }
 }

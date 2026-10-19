@@ -18,51 +18,7 @@ import {
   InternalChatMessage,
 } from "@/lib/dataService";
 import { toast } from "sonner";
-
-interface CurrentDoctor {
-  id: string;
-  clerk_user_id: string;
-  email: string;
-  name: string;
-  specialty: string | null;
-  avatar_url: string | null;
-  clinic_id: string;
-}
-
-interface ApiContact {
-  id?: string;
-  clerk_user_id?: string;
-  name?: string;
-  email?: string;
-  role?: string;
-  type?: "doctor" | "secretary" | "staff";
-  avatar_url?: string | null;
-  clinic_id?: string;
-  isOnline?: boolean;
-}
-
-interface StaffContact {
-  id: string;
-  name: string;
-  role: string;
-  type: "doctor" | "secretary" | "staff" | "broadcast";
-  avatarBg: string;
-  isOnline: boolean;
-  unreadCount: number;
-  lastMessage: string;
-  lastMessageTime: string;
-  channelId: string;
-}
-
-interface ChatMessage {
-  id: string;
-  conversationId: string;
-  senderId: "doctor" | string;
-  senderName: string;
-  text: string;
-  time: string;
-  isUrgent?: boolean;
-}
+import type { ChatMessage, ContactDto, DoctorRow, StaffContact } from "@/types/index";
 
 const QUICK_CLINICAL_TEMPLATES = [
   "Please call the next patient into Exam Room 1.",
@@ -88,7 +44,7 @@ function getAvatarBg(type: StaffContact["type"], id: string): string {
 }
 
 function normalizeContact(
-  raw: ApiContact,
+  raw: ContactDto,
   index: number
 ): StaffContact | null {
   if (!raw || typeof raw !== "object") {
@@ -197,7 +153,7 @@ function getChannelForContactId(
 }
 
 export default function DoctorCommunicationsPage() {
-  const [doctor, setDoctor] = useState<CurrentDoctor | null>(null);
+  const [doctor, setDoctor] = useState<DoctorRow | null>(null);
   const [staffList, setStaffList] = useState<StaffContact[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
 
@@ -280,7 +236,7 @@ export default function DoctorCommunicationsPage() {
 
         if (cancelled) return;
 
-        const currentDoctor: CurrentDoctor = {
+        const currentDoctor: DoctorRow = {
           id: doctorData.user.id,
           clerk_user_id: doctorData.user.clerk_user_id || "",
           email: doctorData.user.email || "",
@@ -292,14 +248,14 @@ export default function DoctorCommunicationsPage() {
         };
 
 
-        const rawContacts: ApiContact[] = Array.isArray(
+        const rawContacts: ContactDto[] = Array.isArray(
           contactsData.contacts
         )
           ? contactsData.contacts
           : [];
 
         const normalizedContacts: StaffContact[] = rawContacts
-          .map((contact: ApiContact, index: number) =>
+          .map((contact: ContactDto, index: number) =>
             normalizeContact(contact, index)
           )
           .filter(
@@ -473,7 +429,7 @@ export default function DoctorCommunicationsPage() {
     );
 
     if (channelId) {
-      markInternalMessagesAsRead(channelId, "doctor");
+      markInternalMessagesAsRead(channelId);
     }
   }, []);
 
@@ -642,12 +598,7 @@ export default function DoctorCommunicationsPage() {
       await saveInternalMessage({
         id: newMsg.id,
         channelId,
-        senderRole: "doctor",
-        senderName,
         content,
-        sentAt: timeStr,
-        isRead: false,
-        clinicId: doctor.clinic_id,
       });
     } catch (error) {
       console.warn(

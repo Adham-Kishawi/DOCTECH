@@ -17,31 +17,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ImageCropperModal } from "@/components/shared/ImageCropperModal";
-
-interface Secretary {
-  id: string;
-  clerk_user_id: string;
-  email: string;
-  name: string;
-  phone: string | null;
-  permissions: string[];
-  avatar_url: string | null;
-  status: "PENDING" | "ACTIVE" | "INACTIVE";
-  clinic_id: string;
-}
-
-interface Clinic {
-  id: string;
-  name: string;
-  phone: string | null;
-  address: string | null;
-  logo_url?: string | null;
-}
+import type { ClinicRow, SecretaryRow } from "@/types/index";
 
 interface ProfileResponse {
   success: boolean;
-  user: Secretary;
-  clinic: Clinic | null;
+  user: SecretaryRow;
+  clinic: ClinicRow | null;
   error?: string;
 }
 

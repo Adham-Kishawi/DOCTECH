@@ -1,8 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { X, DollarSign, Users, Zap, Building2, Stethoscope, Wrench, Megaphone, Scale, Coffee, Calendar, CreditCard, Banknote, Landmark, Check, Truck } from "lucide-react";
-import type { ExpenseItem } from "@/app/api/doctor/finance/route";
+import { useMemo, useState } from "react";
+import {
+  X,
+  DollarSign,
+  Users,
+  Zap,
+  Building2,
+  Stethoscope,
+  Wrench,
+  Megaphone,
+  Scale,
+  Coffee,
+  CreditCard,
+  Banknote,
+  Landmark,
+  Check,
+  Truck,
+  Package,
+  FlaskConical,
+  Monitor,
+  Receipt,
+  MonitorCog,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { ExpenseCategoryOption, ExpenseItem } from "@/types/index";
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -10,6 +32,8 @@ interface ExpenseModalProps {
   onSave: (expense: Omit<ExpenseItem, "id">) => void;
   isRTL: boolean;
   initialData?: ExpenseItem | null;
+  /** Live list from /api/finance/categories; falls back to the built-in list. */
+  categories?: ExpenseCategoryOption[];
 }
 
 export const EXPENSE_CATEGORIES = [
@@ -18,14 +42,64 @@ export const EXPENSE_CATEGORIES = [
   { id: "RENT", labelEn: "Clinic Rent", labelAr: "إيجار العيادة والمقر", icon: Building2, color: "#8B5CF6", bg: "bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400" },
   { id: "SUPPLIES", labelEn: "Medical Supplies", labelAr: "المستلزمات الطبية", icon: Stethoscope, color: "#EC4899", bg: "bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400" },
   { id: "LAB", labelEn: "Lab Tests & Sample Courier", labelAr: "التحاليل ونقل العينات", icon: Truck, color: "#8B5CF6", bg: "bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400" },
+  { id: "TRANSPORT", labelEn: "Delivery & Transport", labelAr: "توصيل ومندوبين", icon: Truck, color: "#0EA5E9", bg: "bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400" },
   { id: "MAINTENANCE", labelEn: "Maintenance & Tech", labelAr: "الصيانة والبرمجيات", icon: Wrench, color: "#06B6D4", bg: "bg-cyan-50 dark:bg-cyan-950/40 text-cyan-600 dark:text-cyan-400" },
   { id: "MARKETING", labelEn: "Marketing & Ads", labelAr: "التسويق والإعلانات", icon: Megaphone, color: "#10B981", bg: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" },
+  { id: "SOFTWARE", labelEn: "Software & Subscriptions", labelAr: "البرامج والاشتراكات", icon: Monitor, color: "#64748B", bg: "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
   { id: "TAXES", labelEn: "Taxes & Gov Fees", labelAr: "الضرائب والرسوم", icon: Scale, color: "#64748B", bg: "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
   { id: "MISC", labelEn: "Hospitality & Misc", labelAr: "نثريات وضيافة", icon: Coffee, color: "#F97316", bg: "bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400" },
+  { id: "CAPEX", labelEn: "Equipment & Assets", labelAr: "أجهزة وأصول", icon: MonitorCog, color: "#475569", bg: "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
 ] as const;
 
-export function ExpenseModal({ isOpen, onClose, onSave, isRTL, initialData }: ExpenseModalProps) {
-  const [category, setCategory] = useState<ExpenseItem["category"]>(initialData?.category || "UTILITIES");
+/** Registry icon names (expense_categories.icon) → Lucide components. */
+const ICON_BY_NAME: Record<string, LucideIcon> = {
+  building: Building2,
+  users: Users,
+  zap: Zap,
+  package: Package,
+  flask: FlaskConical,
+  truck: Truck,
+  tool: Wrench,
+  megaphone: Megaphone,
+  monitor: Monitor,
+  receipt: Receipt,
+  coffee: Coffee,
+  monitorCog: MonitorCog,
+};
+
+interface DisplayCategory {
+  id: string;
+  labelEn: string;
+  labelAr: string;
+  icon: LucideIcon;
+  color: string;
+}
+
+export function ExpenseModal({ isOpen, onClose, onSave, isRTL, initialData, categories }: ExpenseModalProps) {
+  const displayCategories = useMemo<DisplayCategory[]>(() => {
+    if (categories && categories.length > 0) {
+      return categories
+        .filter((category) => category.isActive)
+        .map((category) => ({
+          id: category.code,
+          labelEn: category.nameEn,
+          labelAr: category.nameAr,
+          icon: ICON_BY_NAME[category.icon || ""] || Receipt,
+          color: category.color || "#64748B",
+        }));
+    }
+    return EXPENSE_CATEGORIES.map((category) => ({
+      id: category.id,
+      labelEn: category.labelEn,
+      labelAr: category.labelAr,
+      icon: category.icon,
+      color: category.color,
+    }));
+  }, [categories]);
+
+  const [category, setCategory] = useState<ExpenseItem["category"]>(
+    (initialData?.category || displayCategories[0]?.id || "MISC") as ExpenseItem["category"]
+  );
   const [title, setTitle] = useState(isRTL ? initialData?.titleAr || "" : initialData?.titleEn || "");
   const [amount, setAmount] = useState<string>(initialData ? initialData.amount.toString() : "");
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split("T")[0]);
@@ -40,12 +114,13 @@ export function ExpenseModal({ isOpen, onClose, onSave, isRTL, initialData }: Ex
     e.preventDefault();
     if (!amount || parseFloat(amount) <= 0) return;
 
-    const selectedCat = EXPENSE_CATEGORIES.find((c) => c.id === category) || EXPENSE_CATEGORIES[0];
+    const selectedCat =
+      displayCategories.find((c) => c.id === category) || displayCategories[0];
 
     onSave({
       category,
-      categoryNameEn: selectedCat.labelEn,
-      categoryNameAr: selectedCat.labelAr,
+      categoryNameEn: selectedCat?.labelEn || category,
+      categoryNameAr: selectedCat?.labelAr || category,
       titleEn: isRTL ? title : title,
       titleAr: isRTL ? title : title,
       amount: parseFloat(amount),
@@ -97,14 +172,14 @@ export function ExpenseModal({ isOpen, onClose, onSave, isRTL, initialData }: Ex
               {isRTL ? "تصنيف المصروف *" : "Expense Category *"}
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {EXPENSE_CATEGORIES.map((cat) => {
+              {displayCategories.map((cat) => {
                 const Icon = cat.icon;
                 const isSelected = category === cat.id;
                 return (
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => setCategory(cat.id)}
+                    onClick={() => setCategory(cat.id as ExpenseItem["category"])}
                     className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-center transition-all cursor-pointer ${
                       isSelected
                         ? "border-[#1A4B8C] dark:border-blue-500 bg-blue-50/70 dark:bg-blue-950/50 shadow-xs ring-1 ring-blue-500"

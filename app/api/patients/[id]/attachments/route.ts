@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
+import { getClinicTimezone } from "@/lib/schedule/availabilityService";
+import { clinicCalendarDate } from "@/lib/schedule/clinicTime";
 
 export async function GET(
   request: Request,
@@ -8,14 +10,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.PATIENTS_VIEW });
+    const timeZone = await getClinicTimezone(session.clinicId);
 
     const { data: attachments, error } = await supabase
       .from("patient_attachments")
@@ -35,15 +31,14 @@ export async function GET(
       fileName: att.file_name,
       fileUrl: att.file_url,
       fileType: att.file_type,
-      uploadedAt: att.uploaded_at ? new Date(att.uploaded_at).toISOString().split("T")[0] : "",
+      uploadedAt: clinicCalendarDate(att.uploaded_at, timeZone),
       fileSize: "2.1 MB",
       description: att.description || "",
     }));
 
     return NextResponse.json({ success: true, patientId: id, attachments: mapped });
   } catch (error) {
-    console.error("Fetch attachments error:", error);
-    return NextResponse.json({ success: false, error: "Failed to fetch attachments" }, { status: 500 });
+    return toErrorResponse(error, "Fetch attachments error:");
   }
 }
 
@@ -53,14 +48,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const session = await getClinicSession();
-
-    if (!session?.clinicId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Clinic authentication required" },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ permission: PERMISSIONS.PATIENTS_MANAGE });
+    const timeZone = await getClinicTimezone(session.clinicId);
 
     const body = await request.json();
     const { fileName, fileUrl, fileType, description } = body;
@@ -80,9 +69,12 @@ export async function POST(
       .select()
       .single();
 
-    if (error) {
-      console.error("Save attachment error:", error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+if (error) {
+      console.error("Save attachment error:", error.message);
+      return NextResponse.json(
+        { success: false, error: "Failed to save attachment" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -93,14 +85,13 @@ export async function POST(
         fileName: data.file_name,
         fileUrl: data.file_url,
         fileType: data.file_type,
-        uploadedAt: data.uploaded_at ? new Date(data.uploaded_at).toISOString().split("T")[0] : "",
+        uploadedAt: clinicCalendarDate(data.uploaded_at, timeZone),
         fileSize: "2.1 MB",
         description: data.description,
       },
     });
   } catch (error) {
-    console.error("Upload attachment error:", error);
-    return NextResponse.json({ success: false, error: "Failed to save attachment metadata" }, { status: 500 });
+    return toErrorResponse(error, "Upload attachment error:");
   }
 }
 

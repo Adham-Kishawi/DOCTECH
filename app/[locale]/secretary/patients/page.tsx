@@ -16,27 +16,15 @@ import {
   Calendar,
 } from "lucide-react";
 
-interface Patient {
-  id: string;
-  name: string;
-  phone: string;
-  email?: string;
-  gender: "Male" | "Female" | "Unknown";
-  genderAr: string;
-  age: number;
-  lastVisit: string;
-  lastVisitAr: string;
-  totalVisits: number;
-  notes?: string;
-  address?: string;
-}
+import type { PatientListItem } from "@/types/index";
 
 export default function SecretaryPatientsPage() {
+
   const params = useParams();
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState<string>("all");

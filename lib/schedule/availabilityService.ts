@@ -1,43 +1,56 @@
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import {
+  DEFAULT_CLINIC_TIMEZONE,
+  dayBoundsUtc,
+  wallMinutes,
+} from "@/lib/schedule/clinicTime";
+import {
+  computeDaySlots,
+  getDoctorShifts,
+  getScheduleException,
+  getSlotBlocks,
+  type BookedInput,
+  type SlotStatusKind,
+} from "@/lib/schedule/shiftService";
 
 export interface AvailableSlot {
   time: string;
   startTime: string;
   endTime: string;
   isAvailable: boolean;
+  /** Why the slot is unavailable: a real booking or a manual block (§7.6). */
+  status: SlotStatusKind;
+  reason?: string | null;
+  appointmentId?: string;
+  holdExpiresAt?: string | null;
   doctorId: string;
   date: string;
 }
 
 interface AppointmentRecord {
+  id?: string;
+  appointment_start?: string | null;
   date: string;
   duration: number;
   status: string;
   booking_status: string;
+  expires_at?: string | null;
 }
 
-const ACTIVE_APPOINTMENT_STATUSES = [
-  "SCHEDULED",
-  "CONFIRMED",
-  "COMPLETED",
-];
+/** Slots that block the schedule, including not-yet-expired soft holds. */
+export function blocksSlot(appointment: AppointmentRecord): boolean {
+  if (appointment.booking_status === "REJECTED") return false;
+  if (!["SCHEDULED", "CONFIRMED"].includes(appointment.status)) return false;
 
-function getDayOfWeek(date: string): number {
-  return new Date(`${date}T00:00:00`).getDay();
-}
+  // An expired PENDING_REVIEW request must stop holding the slot even though
+  // no background job has cleared its status yet. Expiry governs soft holds
+  // only: a confirmed appointment must never be released by a stale timestamp.
+  if (appointment.booking_status === "PENDING_REVIEW" && appointment.expires_at) {
+    const expiresAt = new Date(appointment.expires_at).getTime();
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) return false;
+  }
 
-function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function minutesToTime(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-
-  return `${hours.toString().padStart(2, "0")}:${mins
-    .toString()
-    .padStart(2, "0")}`;
+  return true;
 }
 
 function formatDisplayTime(time: string): string {
@@ -50,87 +63,148 @@ function formatDisplayTime(time: string): string {
   return `${displayHours.toString().padStart(2, "0")}:${minutes} ${period}`;
 }
 
-export async function getAvailableSlots(
-  doctorId: string,
-  date: string
-): Promise<AvailableSlot[]> {
-  const dayOfWeek = getDayOfWeek(date);
+/**
+ * The clinic's IANA zone. Slots are wall-clock times belonging to the clinic,
+ * so every comparison against a stored `timestamptz` must be read in this zone
+ * rather than in the API server's.
+ */
+export async function getClinicTimezone(clinicId: string | null | undefined): Promise<string> {
+  if (!clinicId) return DEFAULT_CLINIC_TIMEZONE;
 
-  const { data: schedule, error: scheduleError } = await supabase
-    .from("doctor_schedules")
-    .select("day_of_week, start_time, end_time, slot_duration, is_active")
-    .eq("doctor_id", doctorId)
-    .eq("day_of_week", dayOfWeek)
+  const { data, error } = await supabase
+    .from("clinics")
+    .select("timezone")
+    .eq("id", clinicId)
     .maybeSingle();
 
-  if (scheduleError) {
-    throw new Error(scheduleError.message);
+  if (error) {
+    console.warn("Clinic timezone lookup failed, using default:", error.message);
+    return DEFAULT_CLINIC_TIMEZONE;
   }
 
-  // If doctor does not have an explicit schedule set for this day, fallback to standard hours (09:00 - 17:00)
-  const defaultSchedule = {
-    start_time: "09:00",
-    end_time: "17:00",
-    slot_duration: 30,
-    is_active: true,
-  };
+  const zone = data?.timezone;
+  return typeof zone === "string" && zone.length > 0 ? zone : DEFAULT_CLINIC_TIMEZONE;
+}
 
-  const activeSchedule = (schedule && schedule.is_active) ? schedule : defaultSchedule;
+/**
+ * Reads one doctor's appointments for a clinic-local day.
+ *
+ * Prefers `appointment_start`, the indexed column the exclusion constraint
+ * operates on. If that column is absent — the migration has not been applied
+ * yet — falls back to `date`, widened by a day, and lets the caller do all
+ * in-zone filtering in memory. Never throws: availability degrades to
+ * "everything open" rather than failing the booking screen.
+ */
+async function fetchDayAppointments(
+  doctorId: string,
+  date: string,
+  timeZone: string
+): Promise<AppointmentRecord[]> {
+  const { start, end } = dayBoundsUtc(date, timeZone);
+  // Widen on both sides so a naive `date` written in the wrong zone still lands
+  // inside the window when the fallback path is taken.
+  const windowMs = 24 * 60 * 60 * 1000;
 
-  const startMinutes = timeToMinutes(activeSchedule.start_time);
-  const endMinutes = timeToMinutes(activeSchedule.end_time);
-  const slotDuration = activeSchedule.slot_duration || 30;
-
-  const { data: appointments, error: appointmentsError } = await supabase
+  const { data, error } = await supabase
     .from("appointments")
-    .select("date, duration, status, booking_status")
+    .select("id, date, duration, status, booking_status, expires_at, appointment_start")
     .eq("doctor_id", doctorId)
-    .gte("date", `${date}T00:00:00`)
-    .lt("date", `${date}T23:59:59.999`);
+    .gte("appointment_start", start.toISOString())
+    .lt("appointment_start", end.toISOString());
 
-  if (appointmentsError) {
-    throw new Error(appointmentsError.message);
+  if (!error) {
+    return (data ?? []) as AppointmentRecord[];
   }
 
-  const activeAppointments: AppointmentRecord[] = (appointments ?? []).filter(
-    (appointment) =>
-      ACTIVE_APPOINTMENT_STATUSES.includes(appointment.status) &&
-      appointment.booking_status !== "REJECTED"
+  if (error.code !== "PGRST204" && !/appointment_start/.test(error.message)) {
+    console.error("Availability query failed:", error.message);
+    return [];
+  }
+
+  console.warn(
+    "appointments.appointment_start not available (migration not applied); falling back to date"
   );
 
-  const slots: AvailableSlot[] = [];
+  const fallback = await supabase
+    .from("appointments")
+    .select("id, date, duration, status, booking_status, expires_at")
+    .eq("doctor_id", doctorId)
+    .gte("date", new Date(start.getTime() - windowMs).toISOString())
+    .lt("date", new Date(end.getTime() + windowMs).toISOString());
 
-  for (
-    let currentMinutes = startMinutes;
-    currentMinutes + slotDuration <= endMinutes;
-    currentMinutes += slotDuration
-  ) {
-    const slotStart = currentMinutes;
-    const slotEnd = currentMinutes + slotDuration;
+  if (fallback.error) {
+    console.error("Availability fallback query failed:", fallback.error.message);
+    return [];
+  }
 
-    const isBooked = activeAppointments.some((appointment) => {
-      const appointmentDate = new Date(appointment.date);
+  return (fallback.data ?? []) as AppointmentRecord[];
+}
 
-      const appointmentStart =
-        appointmentDate.getHours() * 60 + appointmentDate.getMinutes();
+function toBookedInputs(records: AppointmentRecord[], timeZone: string): BookedInput[] {
+  const booked: BookedInput[] = [];
 
-      const appointmentEnd = appointmentStart + appointment.duration;
+  for (const appointment of records.filter(blocksSlot)) {
+    const instant = appointment.appointment_start
+      ? new Date(appointment.appointment_start)
+      : new Date(appointment.date);
+    if (Number.isNaN(instant.getTime())) continue;
 
-      return appointmentStart < slotEnd && appointmentEnd > slotStart;
-    });
-
-    const startTime = minutesToTime(slotStart);
-    const endTime = minutesToTime(slotEnd);
-
-    slots.push({
-      time: formatDisplayTime(startTime),
-      startTime,
-      endTime,
-      isAvailable: !isBooked,
-      doctorId,
-      date,
+    const startMinutes = wallMinutes(instant, timeZone);
+    booked.push({
+      startMinutes,
+      endMinutes: startMinutes + (appointment.duration || 0),
+      appointmentId: appointment.id,
+      holdExpiresAt: appointment.expires_at ?? null,
     });
   }
 
-  return slots;
+  return booked;
+}
+
+/**
+ * The full bookable grid for one doctor on one clinic-local day.
+ *
+ * Composes the doctor's shifts (multi-shift aware), any date exception, manual
+ * blocks and existing bookings. If the doctor has no shift configured the day
+ * is simply closed — the plan's §7.1 complaint is precisely that the old code
+ * invented a silent 09:00–17:00 day in that case.
+ */
+export async function getAvailableSlots(
+  doctorId: string,
+  date: string,
+  options: { clinicId?: string | null; timezone?: string } = {}
+): Promise<AvailableSlot[]> {
+  const timeZone = options.timezone || (await getClinicTimezone(options.clinicId));
+  const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+
+  const [shifts, exception, blocks, appointments] = await Promise.all([
+    getDoctorShifts(doctorId, dayOfWeek),
+    getScheduleException(doctorId, date),
+    getSlotBlocks(doctorId, date),
+    fetchDayAppointments(doctorId, date, timeZone),
+  ]);
+
+  const defaultDuration =
+    shifts.find((s) => s.slot_duration && s.slot_duration > 0)?.slot_duration ?? 30;
+
+  const computed = computeDaySlots({
+    shifts,
+    blocks,
+    booked: toBookedInputs(appointments, timeZone),
+    exception,
+    defaultDuration,
+  });
+
+  return computed.map((slot) => ({
+    time: formatDisplayTime(slot.startTime),
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    isAvailable: slot.status === "AVAILABLE",
+    status: slot.status,
+    reason: slot.reason ?? null,
+    appointmentId: slot.appointmentId,
+    holdExpiresAt: slot.holdExpiresAt ?? null,
+    doctorId,
+    date,
+  }));
 }

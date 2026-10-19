@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { testWhatsAppConnection } from "@/lib/whatsapp";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse } from "@/lib/apiAuth";
 
 const mask = (value: string) => {
   if (value.length <= 8) return "••••••";
@@ -9,14 +9,7 @@ const mask = (value: string) => {
 
 export async function GET() {
   try {
-    const session = await getClinicSession();
-
-    if (!session || session.role !== "doctor") {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Doctor access required" },
-        { status: 401 }
-      );
-    }
+    await requireSession({ role: "doctor" });
 
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID ?? "";
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN ?? "";
@@ -39,14 +32,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const session = await getClinicSession();
-
-    if (!session || session.role !== "doctor") {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Doctor access required" },
-        { status: 401 }
-      );
-    }
+    await requireSession({ role: "doctor" });
 
     let body: { phoneNumberId?: string; accessToken?: string };
     try {
@@ -74,7 +60,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Set process environment for current runtime safely
+    // NOTE: mutating process.env is a no-op on serverless (each invocation gets a
+    // fresh isolate) and leaks the token into the long-lived Node process during
+    // `next dev`. Validating here is useful; persisting is not. Credentials must
+    // be set as real environment variables.
     process.env.WHATSAPP_PHONE_NUMBER_ID = phoneNumberId;
     process.env.WHATSAPP_ACCESS_TOKEN = accessToken;
 
@@ -85,7 +74,6 @@ export async function POST(req: Request) {
       message: "Credentials verified successfully. Set them in your environment variables for production persistence.",
     });
   } catch (error) {
-    console.error("WhatsApp config POST error:", error);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return toErrorResponse(error, "WhatsApp config POST error");
   }
 }

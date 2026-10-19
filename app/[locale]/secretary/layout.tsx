@@ -19,10 +19,12 @@ import {
   Send,
   Menu,
   DollarSign,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/Logo";
 import { UserMenu } from "@/components/layout/UserMenu";
+import type { SecretaryRow } from "@/types/index";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { SummonModal } from "@/components/shared/SummonModal";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -30,6 +32,8 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { realtimeBus } from "@/lib/realtimeService";
 import { toast } from "sonner";
+import { PERMISSIONS } from "@/lib/permissions";
+import { PermissionProvider, usePermissions } from "@/components/auth/PermissionProvider";
 
 const navItems = [
   {
@@ -37,42 +41,49 @@ const navItems = [
     labelEn: "Dashboard",
     labelAr: "لوحة التحكم",
     icon: LayoutDashboard,
+    permission: PERMISSIONS.APPOINTMENTS_VIEW,
   },
   {
     href: "appointments",
     labelEn: "Appointments",
     labelAr: "المواعيد",
     icon: CalendarCheck,
+    permission: PERMISSIONS.APPOINTMENTS_VIEW,
   },
   {
     href: "finance",
     labelEn: "Billing / Cashier",
     labelAr: "الخزينة والمدفوعات",
     icon: DollarSign,
+    permission: PERMISSIONS.FINANCE_VIEW,
   },
   {
     href: "schedule",
     labelEn: "Schedule",
     labelAr: "الجدول",
     icon: Calendar,
+    permission: PERMISSIONS.APPOINTMENTS_VIEW,
   },
   {
     href: "patients",
     labelEn: "Patients",
     labelAr: "المرضى",
     icon: Users,
+    permission: PERMISSIONS.PATIENTS_VIEW,
   },
   {
     href: "reports",
     labelEn: "Reports",
     labelAr: "التقارير",
     icon: BarChart2,
+    permission: PERMISSIONS.REPORTS_VIEW,
   },
   {
     href: "whatsapp",
     labelEn: "WhatsApp",
     labelAr: "واتساب",
     icon: MessageCircle,
+    permission: PERMISSIONS.WHATSAPP_VIEW,
   },
   {
     href: "communications",
@@ -88,19 +99,15 @@ const navItems = [
   },
 ];
 
-interface Secretary {
-  id: string;
-  clerk_user_id: string;
-  email: string;
-  name: string;
-  phone: string | null;
-  permissions: string[];
-  avatar_url: string | null;
-  status: "PENDING" | "ACTIVE" | "INACTIVE";
-  clinic_id: string;
+export default function SecretaryLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PermissionProvider>
+      <SecretaryLayoutInner>{children}</SecretaryLayoutInner>
+    </PermissionProvider>
+  );
 }
 
-export default function SecretaryLayout({
+function SecretaryLayoutInner({
   children,
 }: {
   children: React.ReactNode;
@@ -111,8 +118,16 @@ export default function SecretaryLayout({
   const locale = (params?.locale as string) || (pathname ? pathname.split("/")[1] : "en") || "en";
   const isRTL = locale === "ar";
 
+  const { can, session, loading: sessionLoading } = usePermissions();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [secretary, setSecretary] = useState<Secretary | null>(null);
+  const [secretary, setSecretary] = useState<SecretaryRow | null>(null);
+
+  const isDoctor = session.role === "doctor";
+  const hasAnyAccess = isDoctor || session.permissions.length > 0;
+  const visibleNavItems = navItems.filter(
+    (item) => !item.permission || can(item.permission)
+  );
 
   useEffect(() => {
     const fetchSecretary = async () => {
@@ -170,7 +185,7 @@ export default function SecretaryLayout({
         <MobileSidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
-          navItems={navItems}
+          navItems={visibleNavItems}
           role="secretary"
           locale={locale}
           isRTL={isRTL}
@@ -193,7 +208,7 @@ export default function SecretaryLayout({
 
           {/* Navigation */}
           <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-            {navItems.map(({ href, labelEn, labelAr, icon: Icon }) => {
+            {visibleNavItems.map(({ href, labelEn, labelAr, icon: Icon }) => {
               const isActive = pathname.includes(`/secretary/${href}`);
 
               return (
@@ -309,14 +324,18 @@ export default function SecretaryLayout({
 
             {/* Page Content — add bottom padding on mobile for BottomNav */}
             <main className="flex-1 p-3 sm:p-6 overflow-auto pb-20 md:pb-6">
-              {children}
+              {sessionLoading ? null : !hasAnyAccess ? (
+                <NoAccessNotice isRTL={isRTL} />
+              ) : (
+                children
+              )}
             </main>
           </div>
         </div>
 
         {/* Mobile Bottom Nav */}
         <BottomNav
-          items={navItems}
+          items={visibleNavItems}
           role="secretary"
           locale={locale}
           isRTL={isRTL}
@@ -325,5 +344,23 @@ export default function SecretaryLayout({
         />
       </div>
     </AuthGuard>
+  );
+}
+
+function NoAccessNotice({ isRTL }: { isRTL: boolean }) {
+  return (
+    <div className="max-w-md mx-auto mt-16 text-center bg-white dark:bg-[#131E2E] p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+      <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+        <ShieldAlert size={26} />
+      </div>
+      <h2 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
+        {isRTL ? "لا توجد صلاحيات مفعّلة" : "No permissions enabled"}
+      </h2>
+      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        {isRTL
+          ? "تم إنشاء حسابك لكنه لا يملك أي صلاحية بعد. تواصل مع الطبيب لتفعيل الوصول إلى الأقسام."
+          : "Your account was created but has no access yet. Ask the doctor to grant permissions for the modules you need."}
+      </p>
+    </div>
   );
 }

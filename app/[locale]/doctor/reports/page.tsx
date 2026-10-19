@@ -25,12 +25,11 @@ import {
   Plus,
 } from "lucide-react";
 import {
-  CLINIC_DOCTORS,
-  MOCK_CLINICAL_HISTORY,
   ClinicalHistoryItem,
   ClinicalRecordType,
-  DoctorProfile,
 } from "@/lib/doctor/historyData";
+import { mapReportRow } from "@/lib/doctor/reportItem";
+import type { DoctorListItem, ReportDbRow } from "@/types/index";
 import { ClinicalHistoryDetailModal } from "@/components/doctor/reports/ClinicalHistoryDetailModal";
 import { NewClinicalRecordModal } from "@/components/doctor/reports/NewClinicalRecordModal";
 import { toast } from "sonner";
@@ -61,79 +60,39 @@ export default function DoctorReportsListPage() {
   const [newRecordDefaultMode, setNewRecordDefaultMode] = useState<"record" | "new_patient">("record");
   const [preselectedPatientId, setPreselectedPatientId] = useState<string | undefined>(undefined);
 
-  // Real history list from database with mock fallback
-  const [historyList, setHistoryList] = useState<ClinicalHistoryItem[]>(MOCK_CLINICAL_HISTORY);
-  const [isLoading, setIsLoading] = useState(false);
+  // Raw reports rows; mapped to display items once the doctor directory resolves
+  const [reportRows, setReportRows] = useState<ReportDbRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Clinic staff directory backing the doctor filter chips
+  const [doctors, setDoctors] = useState<DoctorListItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDoctors() {
+      try {
+        const res = await fetch("/api/doctors", { cache: "no-store" });
+        const json = await res.json().catch(() => ({} as Record<string, unknown>));
+        if (!cancelled && json.success && Array.isArray(json.data)) {
+          setDoctors(json.data as DoctorListItem[]);
+        }
+      } catch (e) {
+        console.error("Failed to load clinic doctors:", e);
+      }
+    }
+    void loadDoctors();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loadReports = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch("/api/reports");
       const json = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-        const dbItems: ClinicalHistoryItem[] = json.data.map((r: any) => {
-          let meta: any = {};
-          let cleanReview = r.doctor_review || "";
-          if (r.doctor_review && r.doctor_review.includes("<!-- CLINICAL_META:")) {
-            try {
-              const match = r.doctor_review.match(/<!-- CLINICAL_META:\s*([\s\S]*?)\s*-->/);
-              if (match && match[1]) {
-                meta = JSON.parse(match[1]);
-                cleanReview = r.doctor_review.replace(/<!-- CLINICAL_META:[\s\S]*?-->/, "").trim();
-              }
-            } catch (e) {
-              console.error("Failed to parse clinical meta", e);
-            }
-          }
-
-          const patientAttachments = r.patients?.patient_attachments || [];
-
-          return {
-            id: r.id,
-            recordNumber: `REP-${(r.id || "").slice(-6).toUpperCase()}`,
-            type: (meta.type || "TRIAGE_REPORT") as ClinicalRecordType,
-            doctorId: r.doctor_id || "all",
-            doctorName: "Dr. DOCTECH Lead",
-            doctorNameAr: "د. طبيب دوكتك",
-            specialty: "General Medicine",
-            specialtyAr: "الطب العام",
-            patientId: r.patient_id,
-            patientName: r.patients?.name || "Patient",
-            patientNameAr: r.patients?.name || "المريض",
-            patientAge: 35,
-            patientGender: (r.patients?.gender || "male").toLowerCase(),
-            patientPhone: r.patients?.phone || "",
-            date: r.created_at ? r.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-            time: r.created_at
-              ? new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              : "10:00 AM",
-            relativeTimeAr: "اليوم",
-            relativeTimeEn: "Today",
-            title: meta.title || (r.content ? r.content.slice(0, 60) : "Medical Case Report"),
-            titleAr: meta.title || (r.content ? r.content.slice(0, 60) : "تقرير حالة طبية"),
-            diagnosis: meta.diagnosis || cleanReview || undefined,
-            diagnosisAr: meta.diagnosis || cleanReview || undefined,
-            symptoms: r.content,
-            symptomsAr: r.content,
-            doctorNotes: cleanReview || undefined,
-            doctorNotesAr: cleanReview || undefined,
-            triageNotes: r.triage_notes || undefined,
-            triageNotesAr: r.triage_notes || undefined,
-            vitals: meta.vitals || undefined,
-            medicines: meta.medicines || undefined,
-            attachments: patientAttachments.map((att: any) => ({
-              id: att.id,
-              fileName: att.file_name,
-              fileUrl: att.file_url,
-              fileType: att.file_type,
-              description: att.description,
-              uploadedAt: att.created_at,
-            })),
-            urgency: "Normal",
-            status: r.status === "REVIEWED" ? "reviewed" : r.status === "CLOSED" ? "completed" : "pending_action",
-          };
-        });
-        setHistoryList(dbItems);
+      if (json.success && Array.isArray(json.data)) {
+        setReportRows(json.data as ReportDbRow[]);
       }
     } catch (e) {
       console.error("Failed to load reports:", e);
@@ -142,14 +101,21 @@ export default function DoctorReportsListPage() {
     }
   }, []);
 
+  // Rows stay raw so names, ages and the clinical snapshot resolve once
+  // both /api/reports and /api/doctors have landed.
+  const historyList = useMemo(
+    () => reportRows.map((row) => mapReportRow(row, doctors)),
+    [reportRows, doctors]
+  );
+
   useEffect(() => {
     loadReports();
   }, [loadReports]);
 
   // Active Doctor object if a specific doctor is selected
   const activeDoctor = useMemo(() => {
-    return CLINIC_DOCTORS.find((d) => d.id === selectedDoctorId) || null;
-  }, [selectedDoctorId]);
+    return doctors.find((d) => d.id === selectedDoctorId) || null;
+  }, [doctors, selectedDoctorId]);
 
   // Filtered History list
   const filteredHistory = useMemo(() => {
@@ -300,12 +266,12 @@ export default function DoctorReportsListPage() {
               <Users size={15} />
               <span>{isRTL ? "جميع أطباء العيادة" : "All Clinic Doctors"}</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/20">
-                {MOCK_CLINICAL_HISTORY.length}
+                {historyList.length}
               </span>
             </button>
 
             {/* Individual Doctors */}
-            {CLINIC_DOCTORS.map((doc) => {
+            {doctors.map((doc) => {
               const isSelected = selectedDoctorId === doc.id;
               return (
                 <button
@@ -348,12 +314,9 @@ export default function DoctorReportsListPage() {
                   <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                     {isRTL ? activeDoctor.nameAr : activeDoctor.name}
                   </h3>
-                  <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
-                    {activeDoctor.licenseId}
-                  </span>
                 </div>
                 <p className="text-xs font-semibold text-[#1A4B8C] dark:text-blue-400 mt-0.5">
-                  {isRTL ? activeDoctor.titleAr : activeDoctor.title} • {isRTL ? activeDoctor.departmentAr : activeDoctor.department}
+                  {isRTL ? activeDoctor.specialtyAr : activeDoctor.specialty}
                 </p>
               </div>
             </div>
@@ -369,10 +332,10 @@ export default function DoctorReportsListPage() {
               </div>
               <div className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
                 <span className="text-[10px] text-slate-400 font-bold block">
-                  {isRTL ? "روشتات صادرة" : "Prescriptions"}
+                  {isRTL ? "التقارير" : "Reports"}
                 </span>
                 <span className="text-sm font-black text-purple-600 dark:text-purple-400">
-                  {activeDoctor.totalPrescriptions}
+                  {activeDoctor.totalReports}
                 </span>
               </div>
               <div className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
@@ -569,9 +532,11 @@ export default function DoctorReportsListPage() {
                       <h4 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#1A4B8C] dark:group-hover:text-blue-400 transition-colors">
                         {isRTL ? item.patientNameAr : item.patientName}
                       </h4>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                        {item.patientAge} {isRTL ? "سنة" : "yrs"}
-                      </span>
+                      {item.patientAge != null && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {item.patientAge} {isRTL ? "سنة" : "yrs"}
+                        </span>
+                      )}
                       <span className="font-mono text-[10px] font-bold text-slate-400 hidden sm:inline">
                         ({item.recordNumber})
                       </span>

@@ -21,22 +21,34 @@ import {
   Save,
   UserCheck,
 } from "lucide-react";
-import { ClinicalHistoryItem, CLINIC_DOCTORS } from "@/lib/doctor/historyData";
+import { ClinicalHistoryItem } from "@/lib/doctor/historyData";
+import { buildDoctorReview } from "@/lib/doctor/reportItem";
+import type { DoctorListItem, ReportDbRow } from "@/types/index";
 import { toast } from "sonner";
 
 interface SecretaryHistoryDetailModalProps {
   item: ClinicalHistoryItem | null;
+  /** Clinic doctors from GET /api/doctors — the modal never invents staff. */
+  doctors: DoctorListItem[];
   isOpen: boolean;
   onClose: () => void;
-  onUpdateItem?: (updated: ClinicalHistoryItem) => void;
+  /** Receives the row returned by PATCH /api/reports so the list re-derives. */
+  onSaved?: (row: ReportDbRow) => void;
   isRTL: boolean;
 }
 
+const STATUS_TO_API: Record<ClinicalHistoryItem["status"], string> = {
+  pending_action: "PENDING",
+  reviewed: "REVIEWED",
+  completed: "CLOSED",
+};
+
 export function SecretaryHistoryDetailModal({
   item,
+  doctors,
   isOpen,
   onClose,
-  onUpdateItem,
+  onSaved,
   isRTL,
 }: SecretaryHistoryDetailModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -44,7 +56,7 @@ export function SecretaryHistoryDetailModal({
   // Editable Secretary Fields
   const [triageStatus, setTriageStatus] = useState<"pending_action" | "reviewed" | "completed">("reviewed");
   const [urgency, setUrgency] = useState<"High" | "Medium" | "Normal">("Normal");
-  const [assignedDoctorId, setAssignedDoctorId] = useState("doc-1");
+  const [assignedDoctorId, setAssignedDoctorId] = useState("");
   const [secretaryNotes, setSecretaryNotes] = useState("");
   const [vitals, setVitals] = useState({
     bp: "",
@@ -93,56 +105,85 @@ export function SecretaryHistoryDetailModal({
     window.print();
   };
 
-  const handleWhatsAppDispatch = () => {
-    const doc = CLINIC_DOCTORS.find((d) => d.id === assignedDoctorId) || CLINIC_DOCTORS[0];
+  /** PATCHes the triage edits back to /api/reports and returns the stored row. */
+  const persistTriage = async (
+    overrides: { status?: ClinicalHistoryItem["status"]; doctorId?: string } = {}
+  ): Promise<ReportDbRow> => {
+    const targetStatus = overrides.status ?? triageStatus;
+    const targetDoctorId = overrides.doctorId ?? assignedDoctorId;
+    const filledVitals = Object.fromEntries(
+      Object.entries(vitals).filter(([, value]) => String(value).trim() !== "")
+    );
+
+    const response = await fetch("/api/reports", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: item.id,
+        status: STATUS_TO_API[targetStatus],
+        triageNotes: secretaryNotes,
+        ...(targetDoctorId ? { doctorId: targetDoctorId } : {}),
+        doctorReview: buildDoctorReview(item.doctorNotes, {
+          ...item.clinicalMeta,
+          urgency,
+          vitals: Object.keys(filledVitals).length > 0 ? filledVitals : undefined,
+        }),
+      }),
+    });
+
+    const json = await response.json().catch(() => ({}) as Record<string, unknown>);
+    if (!response.ok || !json.success) {
+      throw new Error(
+        typeof json.error === "string" ? json.error : "Failed to save the triage updates"
+      );
+    }
+    return json.data as ReportDbRow;
+  };
+
+  const handleWhatsAppDispatch = async () => {
+    let row: ReportDbRow;
+    try {
+      row = await persistTriage({ status: "completed" });
+    } catch (error) {
+      toast.error(isRTL ? "تعذر حفظ حالة التسليم" : "Could not persist the dispatch status", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+      return;
+    }
+
+    onSaved?.(row);
+    setTriageStatus("completed");
+
+    const doc = doctors.find((d) => d.id === assignedDoctorId);
+    const doctorName = doc?.name ?? item.doctorName;
+    const doctorNameAr = doc?.nameAr ?? item.doctorNameAr;
     const text = isRTL
-      ? `مرحباً أستاذ/ة ${item.patientNameAr}، معك مكتب الاستقبال بعيادة DOCTECH. بخصوص استفسارك/كشفك (${item.recordNumber}) لدى ${doc.nameAr}، تم اعتماد التقرير والروشتة ويمكنك مراجعة التعليمات المرفقة.`
-      : `Hello ${item.patientName}, this is DocTech Clinic Reception regarding your record (${item.recordNumber}) with ${doc.name}. Your review and prescription are ready.`;
+      ? `مرحباً أستاذ/ة ${item.patientNameAr}، معك مكتب الاستقبال بعيادة DOCTECH. بخصوص استفسارك/كشفك (${item.recordNumber}) لدى ${doctorNameAr}، تم اعتماد التقرير والروشتة ويمكنك مراجعة التعليمات المرفقة.`
+      : `Hello ${item.patientName}, this is DocTech Clinic Reception regarding your record (${item.recordNumber}) with ${doctorName}. Your review and prescription are ready.`;
 
     const cleanPhone = item.patientPhone.replace(/[^0-9]/g, "");
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
 
-    // Update status to completed / dispatched
-    setTriageStatus("completed");
-    if (onUpdateItem) {
-      onUpdateItem({
-        ...item,
-        status: "completed",
-        doctorId: assignedDoctorId,
-        doctorName: doc.name,
-        doctorNameAr: doc.nameAr,
-        triageNotes: secretaryNotes,
-        urgency,
-        vitals,
-      });
-    }
     toast.success(isRTL ? "تم فتح واتساب وتحديث الحالة إلى: تم التسليم للمريض ✓" : "Opened WhatsApp & updated status to: Dispatched ✓");
   };
 
-  const handleSaveSecretaryChanges = () => {
+  const handleSaveSecretaryChanges = async () => {
+    if (saving) return;
     setSaving(true);
-    const doc = CLINIC_DOCTORS.find((d) => d.id === assignedDoctorId) || CLINIC_DOCTORS[0];
-    const updated: ClinicalHistoryItem = {
-      ...item,
-      status: triageStatus,
-      urgency,
-      doctorId: assignedDoctorId,
-      doctorName: doc.name,
-      doctorNameAr: doc.nameAr,
-      triageNotes: secretaryNotes,
-      vitals,
-    };
 
-    if (onUpdateItem) {
-      onUpdateItem(updated);
-    }
-
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      const row = await persistTriage();
+      onSaved?.(row);
       toast.success(isRTL ? "تم حفظ تحديثات الفرز وملاحظات السكرتارية ✓" : "Secretary triage updates saved successfully ✓");
       onClose();
-    }, 300);
+    } catch (error) {
+      toast.error(isRTL ? "تعذر حفظ تحديثات الفرز" : "Could not save the triage updates", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getTypeBadge = () => {
@@ -232,7 +273,11 @@ export function SecretaryHistoryDetailModal({
                     {isRTL ? item.patientNameAr : item.patientName}
                   </h3>
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    {item.patientAge} {isRTL ? "سنة" : "yrs"}
+                    {item.patientAge != null
+                      ? `${item.patientAge} ${isRTL ? "سنة" : "yrs"}`
+                      : isRTL
+                        ? "العمر غير مسجل"
+                        : "Age not on file"}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
@@ -259,11 +304,14 @@ export function SecretaryHistoryDetailModal({
                 onChange={(e) => setAssignedDoctorId(e.target.value)}
                 className="h-9 px-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:border-[#0891B2]"
               >
-                {CLINIC_DOCTORS.map((doc) => (
+                {doctors.map((doc) => (
                   <option key={doc.id} value={doc.id}>
                     {isRTL ? doc.nameAr : doc.name} ({isRTL ? doc.specialtyAr : doc.specialty})
                   </option>
                 ))}
+                {!doctors.some((d) => d.id === assignedDoctorId) && (
+                  <option value={assignedDoctorId}>{item.doctorName}</option>
+                )}
               </select>
             </div>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -9,125 +9,297 @@ import {
   Plus,
   Users,
   Search,
-  Filter,
   CheckCircle2,
   Lock,
-  MessageCircle,
   Printer,
   ChevronRight,
-  User,
-  Activity,
-  AlertCircle,
-  ArrowUpRight,
 } from "lucide-react";
-import {
-  ScheduleSlot,
-  WEEK_DAYS,
-  INITIAL_SCHEDULE_SLOTS,
-} from "@/lib/schedule/scheduleData";
-import { CLINIC_DOCTORS } from "@/lib/doctor/historyData";
+import { ScheduleSlot, WEEK_DAYS } from "@/lib/schedule/scheduleData";
+import type { AppointmentListItem, DoctorListItem } from "@/types/index";
 import { SecretarySlotModal } from "@/components/secretary/schedule/SecretarySlotModal";
 import { toast } from "sonner";
+
+const BUSY_SLOT_STATUSES = ["BOOKED", "IN_PROGRESS", "COMPLETED"] as const;
+
+function formatTime(totalMinutes: number): string {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+  const hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const hours12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${String(hours12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
+/** Accepts both 24h rows ("09:00") and display strings ("10:00 AM"). */
+function parseTimeToMinutes(time?: string): number | null {
+  if (!time) return null;
+  const match = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const suffix = match[3]?.toUpperCase();
+  if (suffix === "PM" && hours < 12) hours += 12;
+  if (suffix === "AM" && hours === 12) hours = 0;
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+/** ISO dates are read in UTC so the zone never shifts the weekday. */
+function parseDateToDayOfWeek(date?: string): number | null {
+  if (!date) return null;
+  const iso = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const parsed = iso
+    ? new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])))
+    : new Date(date);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return iso ? parsed.getUTCDay() : parsed.getDay();
+}
 
 export default function SecretarySchedulePage() {
   const params = useParams();
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  // Slots State
-  const [slots, setSlots] = useState<ScheduleSlot[]>(INITIAL_SCHEDULE_SLOTS);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [doctors, setDoctors] = useState<DoctorListItem[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentListItem[]>([]);
 
-  // Selected Doctor Filter ('all' or doc.id)
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("doc-1");
-
-  // Selected Day Filter
-  const [selectedDay, setSelectedDay] = useState<string>("Sunday");
-
-  // Status Filter ('all' | 'AVAILABLE' | 'BOOKED' | 'BLOCKED')
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("all");
+  const [selectedDay, setSelectedDay] = useState<string>(
+    WEEK_DAYS.find((d) => d.dayOfWeek === new Date().getDay())?.en ?? "Sunday"
+  );
   const [statusFilter, setStatusFilter] = useState<string>("all");
-
-  // Search filter
   const [search, setSearch] = useState("");
 
-  // Modal State
   const [selectedSlot, setSelectedSlot] = useState<ScheduleSlot | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Active Doctor object
-  const activeDoctor = useMemo(() => {
-    return CLINIC_DOCTORS.find((d) => d.id === selectedDoctorId) || null;
-  }, [selectedDoctorId]);
+  useEffect(() => {
+    let cancelled = false;
 
-  // Filtered Slots for the current view
+    const load = async () => {
+      try {
+        const [doctorsRes, appointmentsRes] = await Promise.all([
+          fetch("/api/doctors", { cache: "no-store" }),
+          fetch("/api/appointments", { cache: "no-store" }),
+        ]);
+        const doctorsJson = await doctorsRes.json();
+        const appointmentsJson = await appointmentsRes.json();
+
+        if (cancelled) return;
+        if (!doctorsRes.ok || !doctorsJson.success) {
+          throw new Error(doctorsJson.error || "Failed to load doctors");
+        }
+        if (!appointmentsRes.ok || !appointmentsJson.success) {
+          throw new Error(appointmentsJson.error || "Failed to load appointments");
+        }
+
+        const loadedDoctors: DoctorListItem[] = doctorsJson.data ?? [];
+        setDoctors(loadedDoctors);
+        setAppointments(appointmentsJson.data ?? []);
+        setLoadError("");
+        if (
+          selectedDoctorId !== "all" &&
+          !loadedDoctors.some((doctor) => doctor.id === selectedDoctorId)
+        ) {
+          setSelectedDoctorId("all");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : "Failed to load schedule");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** `doctorId|dayOfWeek|startMinutes` -> appointment, ignoring rejected/cancelled holds. */
+  const appointmentIndex = useMemo(() => {
+    const index = new Map<string, AppointmentListItem>();
+    for (const appointment of appointments) {
+      if (appointment.status === "CANCELLED") continue;
+      if (appointment.bookingStatus === "REJECTED" || appointment.bookingStatus === "EXPIRED") {
+        continue;
+      }
+      const dayOfWeek = parseDateToDayOfWeek(appointment.rawDate || appointment.date);
+      const startMinutes = parseTimeToMinutes(appointment.time);
+      if (!appointment.doctorId || dayOfWeek === null || startMinutes === null) continue;
+
+      const key = `${appointment.doctorId}|${dayOfWeek}|${startMinutes}`;
+      if (!index.has(key)) index.set(key, appointment);
+    }
+    return index;
+  }, [appointments]);
+
+  /** Every slot of every week day for the selected doctor(s), built from `doctor_schedules`. */
+  const slots = useMemo(() => {
+    const generated: ScheduleSlot[] = [];
+    const seen = new Set<string>();
+
+    for (const doctor of doctors) {
+      if (selectedDoctorId !== "all" && doctor.id !== selectedDoctorId) continue;
+
+      for (const shift of doctor.schedules) {
+        if (!shift.is_active) continue;
+
+        const day = WEEK_DAYS.find((d) => d.dayOfWeek === shift.day_of_week);
+        const startMinutes = parseTimeToMinutes(shift.start_time);
+        const endMinutes = parseTimeToMinutes(shift.end_time);
+        if (!day || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+          continue;
+        }
+
+        const duration = shift.slot_duration > 0 ? shift.slot_duration : 30;
+        for (let cursor = startMinutes; cursor + duration <= endMinutes; cursor += duration) {
+          const key = `${doctor.id}|${day.dayOfWeek}|${cursor}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          const appointment = appointmentIndex.get(key);
+          const slot: ScheduleSlot = {
+            id: `${doctor.id}-${day.en}-${cursor}`,
+            doctorId: doctor.id,
+            doctorName: doctor.name,
+            doctorNameAr: doctor.nameAr,
+            dayEn: day.en,
+            dayAr: day.ar,
+            time: formatTime(cursor),
+            durationMinutes: duration,
+            status: appointment ? "BOOKED" : "AVAILABLE",
+          };
+
+          if (appointment) {
+            slot.appointmentId = appointment.id;
+            slot.patientName = appointment.patientName;
+            slot.patientNameAr = appointment.patientName;
+            slot.patientPhone = appointment.patientPhone;
+            slot.appointmentType = appointment.type;
+            slot.appointmentTypeAr = appointment.type;
+            slot.fee = appointment.fee;
+            slot.notes = appointment.notes;
+          }
+
+          generated.push(slot);
+        }
+      }
+    }
+
+    return generated;
+  }, [doctors, appointmentIndex, selectedDoctorId]);
+
+  const activeDoctor = useMemo(() => {
+    return doctors.find((d) => d.id === selectedDoctorId) ?? null;
+  }, [doctors, selectedDoctorId]);
+
+  const activeShift = useMemo(() => {
+    const day = WEEK_DAYS.find((d) => d.en === selectedDay);
+    if (!activeDoctor || !day) return null;
+    return (
+      activeDoctor.schedules.find((s) => s.day_of_week === day.dayOfWeek && s.is_active) ?? null
+    );
+  }, [activeDoctor, selectedDay]);
+
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
-      // 1. Doctor filter
-      if (selectedDoctorId !== "all" && slot.doctorId !== selectedDoctorId) {
-        return false;
-      }
+      if (slot.dayEn !== selectedDay) return false;
+      if (statusFilter !== "all" && slot.status !== statusFilter) return false;
 
-      // 2. Day filter
-      if (slot.dayEn !== selectedDay) {
-        return false;
-      }
-
-      // 3. Status filter
-      if (statusFilter !== "all" && slot.status !== statusFilter) {
-        return false;
-      }
-
-      // 4. Search query
       if (search.trim()) {
-        const q = search.toLowerCase();
-        const matchPatient =
-          slot.patientName?.toLowerCase().includes(q) ||
-          slot.patientNameAr?.includes(q);
-        const matchTime = slot.time.toLowerCase().includes(q);
-        const matchType =
-          slot.appointmentType?.toLowerCase().includes(q) ||
-          slot.appointmentTypeAr?.includes(q);
+        const query = search.toLowerCase();
+        const matchesPatient =
+          slot.patientName?.toLowerCase().includes(query) ||
+          slot.patientNameAr?.includes(query);
+        const matchesTime = slot.time.toLowerCase().includes(query);
+        const matchesType =
+          slot.appointmentType?.toLowerCase().includes(query) ||
+          slot.appointmentTypeAr?.includes(query);
 
-        if (!matchPatient && !matchTime && !matchType) {
-          return false;
-        }
+        if (!matchesPatient && !matchesTime && !matchesType) return false;
       }
 
       return true;
     });
-  }, [slots, selectedDoctorId, selectedDay, statusFilter, search]);
+  }, [slots, selectedDay, statusFilter, search]);
 
-  // Aggregate stats for current day & doctor selection
   const dayStats = useMemo(() => {
-    const daySlots = slots.filter((s) => {
-      const matchDoc = selectedDoctorId === "all" || s.doctorId === selectedDoctorId;
-      return matchDoc && s.dayEn === selectedDay;
-    });
+    const daySlots = slots.filter((s) => s.dayEn === selectedDay);
 
     const total = daySlots.length;
-    const booked = daySlots.filter((s) => s.status === "BOOKED" || s.status === "IN_PROGRESS" || s.status === "COMPLETED").length;
+    const booked = daySlots.filter((s) => (BUSY_SLOT_STATUSES as readonly string[]).includes(s.status))
+      .length;
     const available = daySlots.filter((s) => s.status === "AVAILABLE").length;
     const blocked = daySlots.filter((s) => s.status === "BLOCKED").length;
     const occupancyRate = total > 0 ? Math.round((booked / total) * 100) : 0;
 
     return { total, booked, available, blocked, occupancyRate };
-  }, [slots, selectedDoctorId, selectedDay]);
+  }, [slots, selectedDay]);
 
   const handleOpenSlotModal = (slot: ScheduleSlot) => {
     setSelectedSlot(slot);
     setIsModalOpen(true);
   };
 
-  const handleUpdateSlot = (updated: ScheduleSlot) => {
-    setSlots((prev) =>
-      prev.map((s) => (s.id === updated.id ? updated : s))
+  const handleCancelBooking = async (slot: ScheduleSlot) => {
+    if (!slot.appointmentId) return;
+
+    const previous = appointments;
+    setAppointments((current) =>
+      current.map((appointment) =>
+        appointment.id === slot.appointmentId
+          ? { ...appointment, status: "CANCELLED" }
+          : appointment
+      )
     );
-    setSelectedSlot(updated);
+    setSelectedSlot(null);
+    setIsModalOpen(false);
+
+    try {
+      const response = await fetch("/api/appointments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: slot.appointmentId, status: "CANCELLED" }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        throw new Error(json.error || "Failed to cancel the appointment");
+      }
+      toast.success(isRTL ? "تم إلغاء الحجز" : "Booking cancelled");
+    } catch (error) {
+      setAppointments(previous);
+      toast.error(
+        isRTL
+          ? "تعذر إلغاء الحجز، تم التراجع عن التغيير"
+          : "Could not cancel the booking, the change was rolled back",
+        { description: error instanceof Error ? error.message : undefined }
+      );
+    }
   };
 
   const handlePrintSchedule = () => {
     window.print();
     toast.success(isRTL ? "تم تجهيز جدول المواعيد للطباعة" : "Daily schedule prepared for printing");
   };
+
+  const shiftHoursLabel = useMemo(() => {
+    if (!activeShift) return isRTL ? "لا يوجد كشف في هذا اليوم" : "No shift this day";
+    const start = parseTimeToMinutes(activeShift.start_time);
+    const end = parseTimeToMinutes(activeShift.end_time);
+    if (start === null || end === null) return "—";
+    return `${formatTime(start)} - ${formatTime(end)}`;
+  }, [activeShift, isRTL]);
+
+  const shiftDurationLabel = useMemo(() => {
+    if (!activeShift) return "—";
+    return isRTL ? `${activeShift.slot_duration} دقيقة` : `${activeShift.slot_duration} Mins`;
+  }, [activeShift, isRTL]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -174,7 +346,6 @@ export default function SecretarySchedulePage() {
             {isRTL ? "اختر الطبيب لعرض فترات جدول الكشف:" : "Select Physician to View Consultation Slots:"}
           </span>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {/* All Doctors option */}
             <button
               onClick={() => setSelectedDoctorId("all")}
               className={`h-11 px-4 sm:px-5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
@@ -187,8 +358,7 @@ export default function SecretarySchedulePage() {
               <span>{isRTL ? "جميع أطباء العيادة" : "All Clinic Doctors"}</span>
             </button>
 
-            {/* Individual Doctors */}
-            {CLINIC_DOCTORS.map((doc) => {
+            {doctors.map((doc) => {
               const isSelected = selectedDoctorId === doc.id;
               return (
                 <button
@@ -231,12 +401,9 @@ export default function SecretarySchedulePage() {
                   <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                     {isRTL ? activeDoctor.nameAr : activeDoctor.name}
                   </h3>
-                  <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
-                    {activeDoctor.licenseId}
-                  </span>
                 </div>
                 <p className="text-xs font-semibold text-[#0891B2] dark:text-cyan-400 mt-0.5">
-                  {isRTL ? activeDoctor.titleAr : activeDoctor.title} • {isRTL ? activeDoctor.departmentAr : activeDoctor.department}
+                  {isRTL ? activeDoctor.specialtyAr : activeDoctor.specialty}
                 </p>
               </div>
             </div>
@@ -248,7 +415,7 @@ export default function SecretarySchedulePage() {
                 </span>
                 <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1">
                   <Clock size={12} className="text-[#0891B2]" />
-                  09:00 AM - 05:00 PM
+                  {shiftHoursLabel}
                 </span>
               </div>
               <div className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
@@ -256,7 +423,7 @@ export default function SecretarySchedulePage() {
                   {isRTL ? "مدة كل كشف" : "Slot Duration"}
                 </span>
                 <span className="text-xs font-black text-slate-900 dark:text-white">
-                  {isRTL ? "٣٠ دقيقة" : "30 Mins"}
+                  {shiftDurationLabel}
                 </span>
               </div>
               <div className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
@@ -276,11 +443,10 @@ export default function SecretarySchedulePage() {
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none bg-white dark:bg-[#131E2E] p-3.5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         {WEEK_DAYS.map((day) => {
           const isSelected = selectedDay === day.en;
-          const daySlotsCount = slots.filter((s) => {
-            const matchDoc = selectedDoctorId === "all" || s.doctorId === selectedDoctorId;
-            return matchDoc && s.dayEn === day.en;
-          });
-          const bookedCount = daySlotsCount.filter((s) => s.status === "BOOKED" || s.status === "IN_PROGRESS" || s.status === "COMPLETED").length;
+          const daySlotsCount = slots.filter((s) => s.dayEn === day.en);
+          const bookedCount = daySlotsCount.filter((s) =>
+            (BUSY_SLOT_STATUSES as readonly string[]).includes(s.status)
+          ).length;
           const freeCount = daySlotsCount.filter((s) => s.status === "AVAILABLE").length;
 
           return (
@@ -293,15 +459,17 @@ export default function SecretarySchedulePage() {
                   : "bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold"
               }`}
             >
-              <p className="text-xs sm:text-sm font-bold">
-                {isRTL ? day.ar : day.en}
-              </p>
-              <p className={`text-[10px] mt-0.5 ${isSelected ? "text-cyan-100 font-medium" : "text-slate-400"}`}>
+              <p className="text-xs sm:text-sm font-bold">{isRTL ? day.ar : day.en}</p>
+              <p
+                className={`text-[10px] mt-0.5 ${isSelected ? "text-cyan-100 font-medium" : "text-slate-400"}`}
+              >
                 {bookedCount > 0 || freeCount > 0
                   ? isRTL
                     ? `${bookedCount} محجوز • ${freeCount} متاح`
                     : `${bookedCount} Booked • ${freeCount} Open`
-                  : isRTL ? "لا توجد فترات" : "No Slots"}
+                  : isRTL
+                    ? "لا توجد فترات"
+                    : "No Slots"}
               </p>
             </button>
           );
@@ -415,7 +583,21 @@ export default function SecretarySchedulePage() {
           </span>
         </div>
 
-        {filteredSlots.length === 0 ? (
+        {loading ? (
+          <div className="p-12 text-center text-xs text-slate-400 dark:text-slate-500 font-medium">
+            {isRTL ? "جارِ تحميل جدول العيادة..." : "Loading the clinic timetable..."}
+          </div>
+        ) : loadError ? (
+          <div className="p-12 text-center space-y-3">
+            <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">{loadError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="h-9 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold cursor-pointer"
+            >
+              {isRTL ? "إعادة المحاولة" : "Retry"}
+            </button>
+          </div>
+        ) : filteredSlots.length === 0 ? (
           <div className="p-12 text-center text-xs text-slate-400 dark:text-slate-500 font-medium">
             {isRTL
               ? "لا توجد فترات مجدولة تطابق معايير الفلترة المختارة."
@@ -426,7 +608,7 @@ export default function SecretarySchedulePage() {
             {filteredSlots.map((slot) => {
               const isAvailable = slot.status === "AVAILABLE";
               const isBlocked = slot.status === "BLOCKED";
-              const isBooked = slot.status === "BOOKED" || slot.status === "IN_PROGRESS" || slot.status === "COMPLETED";
+              const isBooked = (BUSY_SLOT_STATUSES as readonly string[]).includes(slot.status);
 
               return (
                 <div
@@ -436,20 +618,19 @@ export default function SecretarySchedulePage() {
                     isAvailable
                       ? "bg-emerald-50/20 dark:bg-emerald-950/10 border-dashed border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50/50 hover:border-emerald-500"
                       : isBlocked
-                      ? "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-75"
-                      : "bg-blue-50/30 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900 hover:border-blue-500 shadow-2xs"
+                        ? "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-75"
+                        : "bg-blue-50/30 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900 hover:border-blue-500 shadow-2xs"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      {/* Time Badge */}
                       <div
                         className={`w-13 h-12 rounded-xl flex flex-col items-center justify-center font-mono text-xs font-black shrink-0 ${
                           isAvailable
                             ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300"
                             : isBlocked
-                            ? "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                            : "bg-[#0891B2] text-white shadow-xs"
+                              ? "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                              : "bg-[#0891B2] text-white shadow-xs"
                         }`}
                       >
                         <span>{slot.time.split(" ")[0]}</span>
@@ -458,7 +639,6 @@ export default function SecretarySchedulePage() {
                         </span>
                       </div>
 
-                      {/* Details */}
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-bold text-slate-900 dark:text-white">
@@ -469,15 +649,21 @@ export default function SecretarySchedulePage() {
                               isAvailable
                                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
                                 : isBlocked
-                                ? "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                : "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+                                  ? "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                  : "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
                             }`}
                           >
                             {isAvailable
-                              ? isRTL ? "متاح للحجز" : "Available"
+                              ? isRTL
+                                ? "متاح للحجز"
+                                : "Available"
                               : isBlocked
-                              ? isRTL ? "محجوب" : "Blocked"
-                              : isRTL ? "محجوز" : "Booked"}
+                                ? isRTL
+                                  ? "محجوب"
+                                  : "Blocked"
+                                : isRTL
+                                  ? "محجوز"
+                                  : "Booked"}
                           </span>
                         </div>
 
@@ -487,7 +673,10 @@ export default function SecretarySchedulePage() {
                               {isRTL ? slot.patientNameAr || slot.patientName : slot.patientName}
                             </p>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                              {isRTL ? slot.appointmentTypeAr || slot.appointmentType : slot.appointmentType} • {slot.fee} EGP
+                              {isRTL
+                                ? slot.appointmentTypeAr || slot.appointmentType
+                                : slot.appointmentType}{" "}
+                              • {slot.fee} EGP
                             </p>
                           </div>
                         ) : isBlocked ? (
@@ -496,19 +685,17 @@ export default function SecretarySchedulePage() {
                           </p>
                         ) : (
                           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-bold">
-                            {isRTL ? "اضغط لحجز مريض فوراً ⚡" : "Click to book a patient ⚡"}
+                            {isRTL ? "اضغط لعرض الفترة ⚡" : "Click to view this slot ⚡"}
                           </p>
                         )}
                       </div>
                     </div>
 
-                    {/* Right Doctor indicator */}
                     <span className="text-[10px] text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md shrink-0">
                       {isRTL ? slot.doctorNameAr : slot.doctorName}
                     </span>
                   </div>
 
-                  {/* Bottom Action strip */}
                   <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-2.5 text-[11px]">
                     <span className="text-slate-400 font-medium">
                       ⏱ {slot.durationMinutes} {isRTL ? "دقيقة" : "mins"}
@@ -523,14 +710,14 @@ export default function SecretarySchedulePage() {
 
                     {isAvailable && (
                       <span className="text-emerald-600 font-bold hover:underline flex items-center gap-1">
-                        {isRTL ? "حجز الفترة الآن" : "Book Slot"}
+                        {isRTL ? "عرض الفترة" : "View Slot"}
                         <Plus size={13} />
                       </span>
                     )}
 
                     {isBlocked && (
                       <span className="text-slate-500 font-bold hover:underline flex items-center gap-1">
-                        {isRTL ? "فك الحجب" : "Unblock"}
+                        {isRTL ? "محجوبة" : "Blocked"}
                       </span>
                     )}
                   </div>
@@ -546,7 +733,7 @@ export default function SecretarySchedulePage() {
         slot={selectedSlot}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onUpdateSlot={handleUpdateSlot}
+        onCancelBooking={handleCancelBooking}
         isRTL={isRTL}
       />
     </div>

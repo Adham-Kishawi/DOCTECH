@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
+import { getClinicTimezone } from "@/lib/schedule/availabilityService";
+import { formatInClinicZone } from "@/lib/schedule/clinicTime";
+import { fromPiastres, toPiastres } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const session = await getClinicSession();
+    const session = await requireSession({ permission: PERMISSIONS.FINANCE_VIEW });
     const { searchParams } = new URL(request.url);
-    const clinicIdParam = searchParams.get("clinicId");
     const dateFilter = searchParams.get("date"); // "today" | "all" | "YYYY-MM-DD"
 
-    const clinicId = session?.clinicId || clinicIdParam;
+    // Tenant comes from the session ONLY — never from the query string.
+    const clinicId = session.clinicId;
+    // Formatted server-side, so the zone must be the clinic's — not the
+    // server's, which is UTC in production.
+    const timeZone = await getClinicTimezone(clinicId);
 
     // 1. Fetch appointments that have fees or payments
     let aptQuery = supabase
@@ -45,14 +51,20 @@ export async function GET(request: Request) {
 
     // 3. Format appointments into PaymentRecords
     const recordsFromApts = (appointments || []).map((apt: any) => {
-      const aptDate = apt.date ? new Date(apt.date) : new Date();
-      const isValid = !Number.isNaN(aptDate.getTime());
-      const timeStr = isValid
-        ? aptDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : "10:00 AM";
-      const dateStr = isValid
-        ? aptDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-        : "Today";
+      const timeStr = formatInClinicZone(
+        apt.date,
+        timeZone,
+        { hour: "2-digit", minute: "2-digit" },
+        "en-US",
+        "10:00 AM"
+      );
+      const dateStr = formatInClinicZone(
+        apt.date,
+        timeZone,
+        { month: "short", day: "numeric" },
+        "en-US",
+        "Today"
+      );
 
       const totalDue = Number(apt.fee) || 400; // default fee if unassigned
       const amountPaid = Number(apt.amount_paid) || 0;
@@ -79,14 +91,20 @@ export async function GET(request: Request) {
 
     // 4. Combine with standalone transactions
     const recordsFromTx = (standaloneTx || []).map((tx: any) => {
-      const txDate = tx.date ? new Date(tx.date) : new Date();
-      const isValid = !Number.isNaN(txDate.getTime());
-      const timeStr = isValid
-        ? txDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : "12:00 PM";
-      const dateStr = isValid
-        ? txDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-        : "Today";
+      const timeStr = formatInClinicZone(
+        tx.date,
+        timeZone,
+        { hour: "2-digit", minute: "2-digit" },
+        "en-US",
+        "12:00 PM"
+      );
+      const dateStr = formatInClinicZone(
+        tx.date,
+        timeZone,
+        { month: "short", day: "numeric" },
+        "en-US",
+        "Today"
+      );
 
       return {
         id: tx.id,
@@ -100,8 +118,9 @@ export async function GET(request: Request) {
         date: dateStr,
         time: timeStr,
         rawDate: tx.date,
-        totalDue: Number(tx.amount) || 0,
-        amountPaid: Number(tx.amount) || 0,
+        // payment_transactions.amount is stored in piastres.
+        totalDue: fromPiastres(Number(tx.amount) || 0),
+        amountPaid: fromPiastres(Number(tx.amount) || 0),
         paymentMethod: tx.payment_method || "CASH",
         hasBooking: Boolean(tx.appointment_id),
         status: tx.status || "PAID",
@@ -121,32 +140,41 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, transactions: allRecords });
   } catch (error) {
-    console.error("GET /api/finance/transactions error:", error);
-    return NextResponse.json({ success: true, transactions: [] });
+    return toErrorResponse(error, "GET /api/finance/transactions error");
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const session = await getClinicSession();
+    const session = await requireSession({ permission: PERMISSIONS.FINANCE_PAYMENTS });
     const body = await request.json();
 
-    const clinicId = session?.clinicId || body.clinicId;
+    const clinicId = session.clinicId;
     const { appointmentId, patientId, doctorId, amount, paymentMethod, notes } = body;
 
-    const numAmount = Number(amount) || 0;
+    const numAmount = Number(amount) || 0; // EGP — drives appointments.amount_paid
     const method = paymentMethod || "CASH";
 
     // 1. If linked to an appointment, update appointment's amount_paid and payment info
     if (appointmentId) {
+      // Scope by clinic_id so a payment can never be applied to another
+      // tenant's appointment.
       const { data: apt } = await supabase
         .from("appointments")
         .select("amount_paid, fee")
         .eq("id", appointmentId)
+        .eq("clinic_id", clinicId)
         .maybeSingle();
 
-      const currentPaid = Number(apt?.amount_paid) || 0;
-      const totalDue = Number(apt?.fee) || numAmount;
+      if (!apt) {
+        return NextResponse.json(
+          { success: false, error: "Appointment not found" },
+          { status: 404 }
+        );
+      }
+
+      const currentPaid = Number(apt.amount_paid) || 0;
+      const totalDue = Number(apt.fee) || numAmount;
       const newPaid = Math.min(totalDue, currentPaid + numAmount);
 
       await supabase
@@ -157,7 +185,8 @@ export async function POST(request: Request) {
           payment_date: new Date().toISOString(),
           payment_notes: notes || null,
         })
-        .eq("id", appointmentId);
+        .eq("id", appointmentId)
+        .eq("clinic_id", clinicId);
     }
 
     // 2. Also try recording in payment_transactions table
@@ -169,7 +198,7 @@ export async function POST(request: Request) {
       patient_id: patientId,
       appointment_id: appointmentId || null,
       type: body.type || "CONSULTATION",
-      amount: numAmount,
+      amount: toPiastres(numAmount),
       payment_method: method,
       status: "PAID",
       date: new Date().toISOString(),
@@ -192,7 +221,6 @@ export async function POST(request: Request) {
       transaction: inserted || txPayload,
     });
   } catch (error) {
-    console.error("POST /api/finance/transactions error:", error);
-    return NextResponse.json({ success: false, error: "Failed to record transaction" }, { status: 500 });
+    return toErrorResponse(error, "POST /api/finance/transactions error");
   }
 }

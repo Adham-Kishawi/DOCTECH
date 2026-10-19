@@ -1,24 +1,14 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
   try {
-    const session = await getClinicSession();
-
-    if (!session || session.role !== "doctor" || !session.clinicId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized: Doctor session required",
-        },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ role: "doctor" });
 
     const doctor = session.user;
 
@@ -54,34 +44,14 @@ export async function GET() {
       schedules: schedules ?? [],
     });
   } catch (error) {
-    console.error("Doctor profile error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load doctor profile",
-      },
-      { status: 500 }
-    );
+    // Do not echo the raw driver message back to the client.
+    return toErrorResponse(error, "Doctor profile error");
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const session = await getClinicSession();
-
-    if (!session || session.role !== "doctor" || !session.clinicId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized: Doctor session required",
-        },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ role: "doctor" });
 
     const doctor = session.user;
     const userId = session.userId;
@@ -182,17 +152,6 @@ export async function PATCH(req: Request) {
       clinic: updatedClinic,
     });
   } catch (error) {
-    console.error("Doctor profile update error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to update profile",
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Doctor profile update error");
   }
 }

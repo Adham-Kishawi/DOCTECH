@@ -18,62 +18,19 @@ import {
   InternalChatMessage,
 } from "@/lib/dataService";
 import { toast } from "sonner";
-
-interface StaffContact {
-  id: string;
-  name: string;
-  role: string;
-  avatarBg: string;
-  isOnline: boolean;
-  unreadCount: number;
-  lastMessage: string;
-  lastMessageTime: string;
-  channelId: string;
-  type: "doctor" | "secretary" | "broadcast";
-}
-
-interface ChatMessage {
-  id: string;
-  conversationId: string;
-  senderId: "secretary" | string;
-  senderName: string;
-  text: string;
-  time: string;
-}
-
-interface SecretaryUser {
-  id: string;
-  clerk_user_id: string;
-  email: string;
-  name: string;
-  phone: string | null;
-  permissions: string[];
-  avatar_url: string | null;
-  status: "PENDING" | "ACTIVE" | "INACTIVE";
-  clinic_id: string;
-}
+import type { ChatMessage, ContactDto, SecretaryRow, StaffContact } from "@/types/index";
 
 interface ContactApiResponse {
   success: boolean;
   clinicId?: string;
-  contacts?: Array<{
-    id: string;
-    clerk_user_id: string;
-    name: string;
-    email: string;
-    role: string;
-    type: "doctor" | "secretary";
-    avatar_url: string | null;
-    clinic_id: string;
-    isOnline: boolean;
-  }>;
+  contacts?: ContactDto[];
   error?: string;
 }
 
 interface AuthMeResponse {
   success: boolean;
   role?: string;
-  user?: SecretaryUser;
+  user?: SecretaryRow;
   error?: string;
 }
 
@@ -98,9 +55,7 @@ const BROADCAST_CONTACT: StaffContact = {
   type: "broadcast",
 };
 
-function getAvatarBackground(
-  type: "doctor" | "secretary" | "broadcast"
-): string {
+function getAvatarBackground(type: StaffContact["type"]): string {
   if (type === "doctor") {
     return "bg-blue-600";
   }
@@ -171,7 +126,7 @@ export default function SecretaryCommunicationsPage() {
   const locale = (params?.locale as string) || "en";
 
   const [secretary, setSecretary] =
-    useState<SecretaryUser | null>(null);
+    useState<SecretaryRow | null>(null);
 
   const [clinicId, setClinicId] = useState<string | null>(null);
 
@@ -414,10 +369,9 @@ export default function SecretaryCommunicationsPage() {
         contactList
       );
 
-      markInternalMessagesAsRead(
-        channelId,
-        "secretary"
-      );
+      if (channelId) {
+        markInternalMessagesAsRead(channelId);
+      }
     },
     [contactList]
   );
@@ -605,12 +559,7 @@ export default function SecretaryCommunicationsPage() {
       await saveInternalMessage({
         id: newMsg.id,
         channelId,
-        senderRole: "secretary",
-        senderName: newMsg.senderName,
         content,
-        sentAt: timeStr,
-        isRead: false,
-        clinicId,
       });
     } catch (error) {
       console.warn(

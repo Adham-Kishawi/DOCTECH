@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Menu,
   DollarSign,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/Logo";
@@ -27,6 +28,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { realtimeBus } from "@/lib/realtimeService";
 import { toast } from "sonner";
+import type { ClinicRow, DoctorRow } from "@/types/index";
 
 const navItems = [
   {
@@ -52,6 +54,12 @@ const navItems = [
     labelEn: "Earnings & Finance",
     labelAr: "المالية والأرباح",
     icon: DollarSign,
+  },
+  {
+    href: "invoices",
+    labelEn: "Invoices",
+    labelAr: "الفواتير",
+    icon: Receipt,
   },
   {
     href: "reports",
@@ -85,21 +93,10 @@ const navItems = [
   },
 ];
 
-type DoctorProfile = {
-  name: string;
-  email: string;
-  specialty: string | null;
-  avatar_url?: string | null;
-};
-
-type Clinic = {
-  name: string;
-};
-
 type ProfileResponse = {
   success: boolean;
-  user: DoctorProfile;
-  clinic: Clinic | null;
+  user: DoctorRow;
+  clinic: ClinicRow | null;
   error?: string;
 };
 
@@ -115,8 +112,8 @@ export default function DoctorLayout({
   const isRTL = locale === "ar";
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [doctor, setDoctor] = useState<DoctorProfile | null>(null);
-  const [clinic, setClinic] = useState<Clinic | null>(null);
+  const [doctor, setDoctor] = useState<DoctorRow | null>(null);
+  const [clinic, setClinic] = useState<ClinicRow | null>(null);
 
   useEffect(() => {
     async function loadDoctorProfile() {

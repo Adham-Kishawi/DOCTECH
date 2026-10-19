@@ -27,12 +27,10 @@ import {
   UserCheck,
 } from "lucide-react";
 import {
-  CLINIC_DOCTORS,
-  MOCK_CLINICAL_HISTORY,
   ClinicalHistoryItem,
-  ClinicalRecordType,
-  DoctorProfile,
 } from "@/lib/doctor/historyData";
+import { mapReportRow } from "@/lib/doctor/reportItem";
+import type { DoctorListItem, ReportDbRow } from "@/types/index";
 import { SecretaryHistoryDetailModal } from "@/components/secretary/reports/SecretaryHistoryDetailModal";
 import { toast } from "sonner";
 
@@ -41,54 +39,53 @@ export default function SecretaryReportsPage() {
   const locale = (params?.locale as string) || "en";
   const isRTL = locale === "ar";
 
-  // Items State (allows secretary to update triage status / vitals / doctor in memory)
-  const [historyItems, setHistoryItems] = useState<ClinicalHistoryItem[]>(MOCK_CLINICAL_HISTORY);
+  // Raw reports rows; the display items below resolve names and the clinical snapshot
+  const [reportRows, setReportRows] = useState<ReportDbRow[]>([]);
+
+  // Clinic staff directory backing the doctor filter chips
+  const [doctors, setDoctors] = useState<DoctorListItem[]>([]);
+
+  const historyItems = useMemo(
+    () => reportRows.map((row) => mapReportRow(row, doctors)),
+    [reportRows, doctors]
+  );
 
   useEffect(() => {
+    let cancelled = false;
+    async function loadDoctors() {
+      try {
+        const res = await fetch("/api/doctors", { cache: "no-store" });
+        const json = await res.json().catch(() => ({} as Record<string, unknown>));
+        if (!cancelled && json.success && Array.isArray(json.data)) {
+          setDoctors(json.data as DoctorListItem[]);
+        }
+      } catch (e) {
+        console.error("Failed to load clinic doctors:", e);
+      }
+    }
+    void loadDoctors();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     async function loadReports() {
       try {
         const res = await fetch("/api/reports");
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          const dbItems: ClinicalHistoryItem[] = json.data.map((r: any) => ({
-            id: r.id,
-            recordNumber: `REP-${(r.id || "").slice(-6).toUpperCase()}`,
-            type: "TRIAGE_REPORT",
-            doctorId: r.doctor_id || "all",
-            doctorName: "Dr. DOCTECH Lead",
-            doctorNameAr: "د. طبيب دوكتك",
-            specialty: "General Medicine",
-            specialtyAr: "الطب العام",
-            patientId: r.patient_id,
-            patientName: r.patients?.name || "Omar Khaled",
-            patientNameAr: r.patients?.name || "عمر خالد",
-            patientAge: 35,
-            patientGender: "male",
-            patientPhone: r.patients?.phone || "01011112222",
-            date: r.created_at ? r.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-            time: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "10:00 AM",
-            relativeTimeAr: "اليوم",
-            relativeTimeEn: "Today",
-            title: r.content ? r.content.slice(0, 60) : "Medical Case Report",
-            titleAr: r.content ? r.content.slice(0, 60) : "تقرير حالة طبية",
-            diagnosis: r.doctor_review || undefined,
-            diagnosisAr: r.doctor_review || undefined,
-            symptoms: r.content,
-            symptomsAr: r.content,
-            doctorNotes: r.doctor_review || undefined,
-            doctorNotesAr: r.doctor_review || undefined,
-            triageNotes: r.triage_notes || undefined,
-            triageNotesAr: r.triage_notes || undefined,
-            urgency: "Normal",
-            status: r.status === "REVIEWED" ? "reviewed" : r.status === "CLOSED" ? "completed" : "pending_action",
-          }));
-          setHistoryItems(dbItems);
+        if (!cancelled && json.success && Array.isArray(json.data)) {
+          setReportRows(json.data as ReportDbRow[]);
         }
       } catch (e) {
         console.error("Failed to load reports for secretary:", e);
       }
     }
     loadReports();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Selected Doctor Filter ('all' or doctorId)
@@ -112,8 +109,8 @@ export default function SecretaryReportsPage() {
 
   // Active Doctor object if a specific doctor is selected
   const activeDoctor = useMemo(() => {
-    return CLINIC_DOCTORS.find((d) => d.id === selectedDoctorId) || null;
-  }, [selectedDoctorId]);
+    return doctors.find((d) => d.id === selectedDoctorId) || null;
+  }, [doctors, selectedDoctorId]);
 
   // Filtered History list
   const filteredHistory = useMemo(() => {
@@ -133,12 +130,17 @@ export default function SecretaryReportsPage() {
         return false;
       }
 
-      // 4. Date range filter
-      if (dateRange === "today" && item.date !== "2026-09-03") {
-        return false;
-      }
-      if (dateRange === "week" && !item.date.startsWith("2026-09")) {
-        return false;
+      // 4. Date range filter, measured back from today
+      if (dateRange !== "all") {
+        const [year, month, day] = item.date.split("-").map(Number);
+        const record = new Date(year || 1970, (month || 1) - 1, day || 1);
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const daysAgo = Math.floor((startOfDay.getTime() - record.getTime()) / 86_400_000);
+
+        if (dateRange === "today" && daysAgo !== 0) return false;
+        if (dateRange === "week" && (daysAgo < 0 || daysAgo > 6)) return false;
+        if (dateRange === "month" && (daysAgo < 0 || daysAgo > 30)) return false;
       }
 
       // 5. Search query
@@ -190,26 +192,42 @@ export default function SecretaryReportsPage() {
     setIsModalOpen(true);
   };
 
-  const handleUpdateItem = (updated: ClinicalHistoryItem) => {
-    setHistoryItems((prev) =>
-      prev.map((it) => (it.id === updated.id ? updated : it))
-    );
-    setSelectedItem(updated);
+  /** Swaps a stored row for its fresh counterpart and re-derives the open detail. */
+  const applyRow = (row: ReportDbRow) => {
+    setReportRows((prev) => prev.map((r) => (r.id === row.id ? row : r)));
+    setSelectedItem((prev) => (prev && prev.id === row.id ? mapReportRow(row, doctors) : prev));
   };
 
-  const handleQuickWhatsAppDispatch = (e: React.MouseEvent, item: ClinicalHistoryItem) => {
+  const handleQuickWhatsAppDispatch = async (e: React.MouseEvent, item: ClinicalHistoryItem) => {
     e.stopPropagation();
-    const doc = CLINIC_DOCTORS.find((d) => d.id === item.doctorId) || CLINIC_DOCTORS[0];
+    const doc = doctors.find((d) => d.id === item.doctorId);
+    const doctorName = doc?.name ?? item.doctorName;
+    const doctorNameAr = doc?.nameAr ?? item.doctorNameAr;
     const text = isRTL
-      ? `مرحباً أستاذ/ة ${item.patientNameAr}، معك مكتب الاستقبال بعيادة DOCTECH. تم اعتماد تقريرك/روشتتك (${item.recordNumber}) لدى ${doc.nameAr}. نتمنى لك دوام العافية.`
-      : `Hello ${item.patientName}, your medical record (${item.recordNumber}) with ${doc.name} has been processed by reception.`;
+      ? `مرحباً أستاذ/ة ${item.patientNameAr}، معك مكتب الاستقبال بعيادة DOCTECH. تم اعتماد تقريرك/روشتتك (${item.recordNumber}) لدى ${doctorNameAr}. نتمنى لك دوام العافية.`
+      : `Hello ${item.patientName}, your medical record (${item.recordNumber}) with ${doctorName} has been processed by reception.`;
 
     const cleanPhone = item.patientPhone.replace(/[^0-9]/g, "");
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, "_blank");
 
-    // Mark as completed
-    handleUpdateItem({ ...item, status: "completed" });
-    toast.success(isRTL ? "تم فتح واتساب وتحديث الحالة إلى تم التسليم" : "Opened WhatsApp & marked as dispatched");
+    try {
+      const response = await fetch("/api/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, status: "CLOSED" }),
+      });
+      const json = await response.json().catch(() => ({}) as Record<string, unknown>);
+      if (!response.ok || !json.success) {
+        throw new Error(typeof json.error === "string" ? json.error : "Failed to update");
+      }
+
+      applyRow(json.data as ReportDbRow);
+      toast.success(isRTL ? "تم فتح واتساب وتحديث الحالة إلى تم التسليم" : "Opened WhatsApp & marked as dispatched");
+    } catch (error) {
+      toast.error(isRTL ? "تعذر تحديث حالة التسليم" : "Could not mark the record as dispatched", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
   };
 
   const handleExportSummary = () => {
@@ -271,7 +289,7 @@ export default function SecretaryReportsPage() {
             </button>
 
             {/* Individual Doctors */}
-            {CLINIC_DOCTORS.map((doc) => {
+            {doctors.map((doc) => {
               const isSelected = selectedDoctorId === doc.id;
               return (
                 <button
@@ -314,12 +332,9 @@ export default function SecretaryReportsPage() {
                   <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                     {isRTL ? activeDoctor.nameAr : activeDoctor.name}
                   </h3>
-                  <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
-                    {activeDoctor.licenseId}
-                  </span>
                 </div>
                 <p className="text-xs font-semibold text-[#0891B2] dark:text-cyan-400 mt-0.5">
-                  {isRTL ? activeDoctor.titleAr : activeDoctor.title} • {isRTL ? activeDoctor.departmentAr : activeDoctor.department}
+                  {isRTL ? activeDoctor.specialtyAr : activeDoctor.specialty}
                 </p>
               </div>
             </div>
@@ -335,10 +350,10 @@ export default function SecretaryReportsPage() {
               </div>
               <div className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
                 <span className="text-[10px] text-slate-400 font-bold block">
-                  {isRTL ? "روشتات صادرة" : "Prescriptions"}
+                  {isRTL ? "التقارير" : "Reports"}
                 </span>
                 <span className="text-sm font-black text-purple-600 dark:text-purple-400">
-                  {activeDoctor.totalPrescriptions}
+                  {activeDoctor.totalReports}
                 </span>
               </div>
               <div className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
@@ -559,9 +574,11 @@ export default function SecretaryReportsPage() {
                       <h4 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#0891B2] dark:group-hover:text-cyan-400 transition-colors">
                         {isRTL ? item.patientNameAr : item.patientName}
                       </h4>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                        {item.patientAge} {isRTL ? "سنة" : "yrs"}
-                      </span>
+                      {item.patientAge != null && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {item.patientAge} {isRTL ? "سنة" : "yrs"}
+                        </span>
+                      )}
                       <span className="font-mono text-[10px] font-bold text-slate-400 hidden sm:inline">
                         ({item.recordNumber})
                       </span>
@@ -653,9 +670,10 @@ export default function SecretaryReportsPage() {
       {/* ━━━ 6. SECRETARY DETAIL & TRIAGE MODAL ━━━ */}
       <SecretaryHistoryDetailModal
         item={selectedItem}
+        doctors={doctors}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onUpdateItem={handleUpdateItem}
+        onSaved={applyRow}
         isRTL={isRTL}
       />
     </div>

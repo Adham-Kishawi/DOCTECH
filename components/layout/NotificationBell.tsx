@@ -4,19 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Bell, Check, Clock, Bot, Calendar, AlertCircle, X, MessageSquare } from "lucide-react";
 import { realtimeBus, RealtimeEvent } from "@/lib/realtimeService";
-import { fetchNotifications, markAllNotificationsRead, SystemNotification } from "@/lib/notificationService";
-
-export interface AppNotification {
-  id: string;
-  type: "NEW_APPOINTMENT" | "AI_BOOKING_REQUEST" | "APPOINTMENT_CANCELLED" | "NEW_REPORT" | "SYSTEM" | "INTERNAL_MESSAGE" | "WHATSAPP_MESSAGE";
-  title: string;
-  titleAr: string;
-  body: string;
-  bodyAr: string;
-  time: string;
-  isRead: boolean;
-  link: string;
-}
+import { fetchNotifications, markAllNotificationsRead } from "@/lib/notificationService";
+import type { SystemNotification } from "@/types/index";
 
 interface NotificationBellProps {
   role: "doctor" | "secretary";
@@ -26,7 +15,7 @@ interface NotificationBellProps {
 
 export function NotificationBell({ role, locale, isRTL }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notifications, setNotifications] = useState<SystemNotification[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -39,7 +28,7 @@ export function NotificationBell({ role, locale, isRTL }: NotificationBellProps)
         setNotifications(
           notifs.map((n) => ({
             id: n.id,
-            type: (n.type as AppNotification["type"]) || "SYSTEM",
+            type: (n.type as SystemNotification["type"]) || "SYSTEM",
             title: n.title,
             titleAr: n.titleAr || n.title,
             body: n.body,
@@ -63,9 +52,9 @@ export function NotificationBell({ role, locale, isRTL }: NotificationBellProps)
         const payload = event.payload;
         setNotifications((prev) => {
           if (prev.some((n) => n.id === payload.id)) return prev;
-          const newN: AppNotification = {
+          const newN: SystemNotification = {
             id: payload.id,
-            type: (payload.type as AppNotification["type"]) || "SYSTEM",
+            type: (payload.type as SystemNotification["type"]) || "SYSTEM",
             title: payload.title,
             titleAr: payload.title,
             body: payload.body,
@@ -88,7 +77,7 @@ export function NotificationBell({ role, locale, isRTL }: NotificationBellProps)
           const notifId = `notif-chat-${msg.id}`;
           setNotifications((prev) => {
             if (prev.some((n) => n.id === notifId || n.id === msg.id)) return prev;
-            const newN: AppNotification = {
+            const newN: SystemNotification = {
               id: notifId,
               type: "INTERNAL_MESSAGE",
               title: isRTL
@@ -130,7 +119,7 @@ export function NotificationBell({ role, locale, isRTL }: NotificationBellProps)
     await markAllNotificationsRead(role);
   };
 
-  const getIcon = (type: AppNotification["type"]) => {
+  const getIcon = (type: SystemNotification["type"]) => {
     switch (type) {
       case "INTERNAL_MESSAGE":
         return <MessageSquare size={15} className="text-[#36ADA3] dark:text-[#4B85C5]" />;

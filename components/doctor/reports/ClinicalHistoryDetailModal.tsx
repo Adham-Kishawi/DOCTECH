@@ -199,7 +199,7 @@ export function ClinicalHistoryDetailModal({
                     {isRTL ? item.patientNameAr : item.patientName}
                   </h3>
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    {item.patientAge} {isRTL ? "سنة" : "yrs"} • {item.patientGender === "male" ? (isRTL ? "ذكر" : "Male") : (isRTL ? "أنثى" : "Female")}
+                    {item.patientAge != null ? `${item.patientAge} ${isRTL ? "سنة" : "yrs"} • ` : ""}{item.patientGender === "male" ? (isRTL ? "ذكر" : "Male") : (isRTL ? "أنثى" : "Female")}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">

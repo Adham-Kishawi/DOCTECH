@@ -1,6 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { toErrorResponse } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -58,18 +59,7 @@ export async function GET() {
       clinic: clinic || null,
     });
   } catch (error) {
-    console.error("Secretary profile fetch error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load secretary profile",
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Secretary profile fetch error:");
   }
 }
 
@@ -154,17 +144,6 @@ export async function PATCH(req: Request) {
       user: updatedSecretary,
     });
   } catch (error) {
-    console.error("Secretary profile update error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to update secretary profile",
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Secretary profile update error:");
   }
 }

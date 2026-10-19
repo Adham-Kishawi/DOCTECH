@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
 
 export async function GET() {
   try {
-    const session = await getClinicSession();
-
-    if (!session || session.role !== "doctor" || !session.clinicId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized: Doctor session required",
-        },
-        { status: 401 }
-      );
-    }
+    const session = await requireSession({ role: "doctor" });
 
     const doctor = session.user;
 
@@ -78,17 +68,6 @@ export async function GET() {
       contacts,
     });
   } catch (error) {
-    console.error("Get doctor contacts error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load clinic contacts",
-      },
-      { status: 500 }
-    );
+    return toErrorResponse(error, "Get doctor contacts error");
   }
 }

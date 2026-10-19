@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
-import { getClinicSession } from "@/lib/clinicAuth";
+import { requireSession, toErrorResponse, PERMISSIONS } from "@/lib/apiAuth";
+import { getClinicTimezone } from "@/lib/schedule/availabilityService";
+import { formatInClinicZone, wallDate } from "@/lib/schedule/clinicTime";
+import { fromPiastres } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const session = await getClinicSession();
+    const session = await requireSession({ permission: PERMISSIONS.FINANCE_VIEW });
     const { searchParams } = new URL(request.url);
     const doctorId = searchParams.get("doctorId");
-    const clinicId = session?.clinicId || searchParams.get("clinicId");
+    // Tenant comes from the session ONLY — never from the query string.
+    const clinicId = session.clinicId;
+    // Every date bucket below is a clinic calendar day, not a UTC day.
+    const timeZone = await getClinicTimezone(clinicId);
 
     // 1. Fetch appointments
     let aptQuery = supabase
@@ -48,11 +54,14 @@ export async function GET(request: Request) {
     const expList = expenses || [];
 
     // 3. Compute metrics
-    const todayStr = new Date().toISOString().split("T")[0];
+    // `toISOString().split("T")[0]` is the UTC calendar day — the previous day
+    // for anything booked late in the clinic's evening. Bucket by the clinic's
+    // own calendar instead.
+    const todayStr = wallDate(new Date(), timeZone);
 
     let totalRevenue = 0;
     let todayRevenue = 0;
-    let totalAppointments = aptList.length;
+    const totalAppointments = aptList.length;
     let paidAppointments = 0;
     let unpaidAppointments = 0;
 
@@ -65,22 +74,29 @@ export async function GET(request: Request) {
 
     const recentTransactions: any[] = [];
 
-    // Grouping by last 7 days for weeklyTrend
+    // Grouping by last 7 days for weeklyTrend.
+    // Pure calendar arithmetic on the clinic's own day: deriving each bucket by
+    // subtracting 86400000 ms from "now" renames or duplicates a column
+    // whenever a DST change falls inside the window.
     const daysMap: Record<string, { day: string; revenue: number; consultations: number }> = {};
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const [todayY, todayM, todayD] = todayStr.split("-").map(Number);
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const k = d.toISOString().split("T")[0];
-      const name = dayNames[d.getDay()];
-      daysMap[k] = { day: name, revenue: 0, consultations: 0 };
+      const day = new Date(Date.UTC(todayY, todayM - 1, todayD - i));
+      const k = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}-${String(
+        day.getUTCDate()
+      ).padStart(2, "0")}`;
+      if (daysMap[k]) continue;
+      daysMap[k] = { day: dayNames[day.getUTCDay()], revenue: 0, consultations: 0 };
     }
 
     aptList.forEach((apt: any) => {
       const paid = Number(apt.amount_paid) || 0;
       const fee = Number(apt.fee) || 0;
       const method = (apt.payment_method as string) || "CASH";
-      const aptDateStr = apt.date ? apt.date.split("T")[0] : "";
+      // The clinic's calendar day. Splitting the ISO string takes the UTC day,
+      // so a 00:30 booking (22:30 UTC the previous day) lands in yesterday.
+      const aptDateStr = apt.date ? wallDate(new Date(apt.date), timeZone) : "";
 
       totalRevenue += paid;
 
@@ -104,13 +120,18 @@ export async function GET(request: Request) {
       }
 
       if (recentTransactions.length < 10 && paid > 0) {
-        const aptDate = apt.date ? new Date(apt.date) : new Date();
         recentTransactions.push({
           id: apt.id,
           patientName: apt.patients?.name || "Patient",
           amount: paid,
           method,
-          date: aptDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          date: formatInClinicZone(
+            apt.date,
+            timeZone,
+            { month: "short", day: "numeric" },
+            "en-US",
+            "Today"
+          ),
           doctor: apt.doctors?.name || "Doctor",
           status: paid >= fee ? "PAID" : "PENDING",
         });
@@ -118,9 +139,10 @@ export async function GET(request: Request) {
     });
 
     // Cash drawer computation (Cash in - Cash out)
+    // expenses.amount is stored in piastres; the drawer is reported in EGP.
     const cashOut = expList
       .filter((e: any) => (e.payment_method || "CASH") === "CASH")
-      .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+      .reduce((sum: number, e: any) => sum + fromPiastres(Number(e.amount) || 0), 0);
     const cashInDrawer = Math.max(0, (byPaymentMethod.CASH || 0) - cashOut);
 
     const weeklyTrend = Object.values(daysMap);
@@ -139,7 +161,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, summary });
   } catch (error) {
-    console.error("Finance summary error:", error);
-    return NextResponse.json({ success: false, error: "Failed to fetch financial data" }, { status: 500 });
+    return toErrorResponse(error, "Finance summary error");
   }
 }

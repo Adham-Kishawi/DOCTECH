@@ -2,16 +2,35 @@ import { NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { Client } from "pg";
+import { readFile, readdir } from "node:fs/promises";
+import { join } from "node:path";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const secretKey = searchParams.get("key");
+/**
+ * One-shot environment provisioning.
+ *
+ * Security posture:
+ *  - POST only. A GET would let any browser, link prefetcher or crawler trigger DDL.
+ *  - The secret must come from `ADMIN_SETUP_SECRET` in the environment. There is no
+ *    hardcoded fallback.
+ *  - The seed password is never echoed back in the response.
+ *  - TLS verification stays on: the Supabase cert chain is valid.
+ */
+export async function POST(request: Request) {
+  const expectedSecret = process.env.ADMIN_SETUP_SECRET;
 
-  // Secure the endpoint with a secret query param
-  if (secretKey !== "doctech_setup_secret_2026") {
-    return NextResponse.json({ error: "Unauthorized access key" }, { status: 401 });
+  if (!expectedSecret) {
+    console.error("[setup-doctech] ADMIN_SETUP_SECRET is not configured. Endpoint disabled.");
+    return NextResponse.json(
+      { error: "Setup endpoint is not configured" },
+      { status: 503 }
+    );
+  }
+
+  const provided = request.headers.get("x-admin-setup-secret");
+  if (!provided || provided !== expectedSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const results: Record<string, any> = {
@@ -22,10 +41,10 @@ export async function GET(request: Request) {
     patients: [],
     appointments: [],
     expenses: [],
+    migrations: [],
   };
 
   // 1. Create missing tables using pg Client
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   const dbUrl =
     process.env.POSTGRES_URL_NON_POOLING ||
     process.env.POSTGRES_URL ||
@@ -35,10 +54,7 @@ export async function GET(request: Request) {
   let pgClient: Client | null = null;
   if (dbUrl) {
     try {
-      pgClient = new Client({
-        connectionString: dbUrl,
-        ssl: { rejectUnauthorized: false },
-      });
+      pgClient = new Client({ connectionString: dbUrl });
       await pgClient.connect();
     } catch (connErr: any) {
       console.error("PG connect error:", connErr);
@@ -46,6 +62,12 @@ export async function GET(request: Request) {
     }
   } else {
     results.pgConnectError = "No database URL found in environment";
+    // The exclusion constraint that prevents double-booking lives in
+    // supabase/migrations. Without a connection string it is NOT applied, and
+    // silently returning would look like a successful setup.
+    results.migrationsSkipped =
+      "No POSTGRES_URL / DATABASE_URL configured. Apply supabase/migrations/*.sql " +
+      "manually in the Supabase SQL editor, otherwise double-booking is still possible.";
   }
 
   const ddlStatements = [
@@ -70,7 +92,7 @@ export async function GET(request: Request) {
       "category" TEXT NOT NULL DEFAULT 'MISC',
       "title" TEXT NOT NULL,
       "title_ar" TEXT,
-      "amount" DOUBLE PRECISION NOT NULL,
+      "amount" BIGINT NOT NULL,
       "date" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       "payment_method" TEXT NOT NULL DEFAULT 'CASH',
       "paid_to" TEXT,
@@ -88,7 +110,7 @@ export async function GET(request: Request) {
       "patient_id" TEXT NOT NULL REFERENCES "patients"("id") ON DELETE CASCADE,
       "appointment_id" TEXT REFERENCES "appointments"("id") ON DELETE SET NULL,
       "type" TEXT NOT NULL DEFAULT 'CONSULTATION',
-      "amount" DOUBLE PRECISION NOT NULL,
+      "amount" BIGINT NOT NULL,
       "payment_method" TEXT NOT NULL DEFAULT 'CASH',
       "status" TEXT NOT NULL DEFAULT 'PAID',
       "date" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -113,9 +135,12 @@ export async function GET(request: Request) {
       "clinic_id" TEXT NOT NULL REFERENCES "clinics"("id") ON DELETE CASCADE,
       "doctor_id" TEXT REFERENCES "doctors"("id") ON DELETE CASCADE,
       "secretary_id" TEXT REFERENCES "secretaries"("id") ON DELETE CASCADE,
+      "role" TEXT NOT NULL DEFAULT 'all',
       "type" TEXT NOT NULL,
       "title" TEXT NOT NULL,
+      "title_ar" TEXT,
       "body" TEXT NOT NULL,
+      "body_ar" TEXT,
       "is_read" BOOLEAN NOT NULL DEFAULT false,
       "link" TEXT,
       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -143,6 +168,44 @@ export async function GET(request: Request) {
   ];
 
   if (pgClient) {
+    // 1. Apply supabase/migrations/*.sql FIRST — the source of truth for schema.
+    //
+    // 0000 creates clinics, doctors, secretaries, patients, appointments,
+    // doctor_schedules, appointment_types and internal_messages, and every
+    // inline statement in ddlStatements below points a foreign key at one of
+    // them. Running the inline DDL first on a fresh database fails with
+    // `relation "patients" does not exist`; that used to set results.tableError
+    // and gate this loop, so the migrations were skipped too and a fresh
+    // environment provisioned nothing at all.
+    //
+    // Sorted so 0000 (baseline) -> 0001 (scheduling) -> 0002 (internal_messages)
+    // apply in dependency order. Each file is one simple-query message, which
+    // PostgreSQL executes as a single implicit transaction, so a migration that
+    // fails halfway rolls itself back rather than leaving partial schema.
+    try {
+      const migrationsDir = join(process.cwd(), "supabase", "migrations");
+      const files = (await readdir(migrationsDir))
+        .filter((f) => f.endsWith(".sql"))
+        .sort();
+
+      for (const file of files) {
+        const sql = await readFile(join(migrationsDir, file), "utf8");
+        try {
+          await pgClient.query(sql);
+          results.migrations.push({ file, ok: true });
+        } catch (migErr: any) {
+          console.error(`Migration ${file} failed:`, migErr);
+          results.migrations.push({ file, ok: false, error: migErr.message });
+          results.migrationError = migErr.message;
+        }
+      }
+    } catch (dirErr: any) {
+      results.migrationError = dirErr.message;
+    }
+
+    // 2. Then the tables this repo declares inline. They depend on the tables
+    // the migrations just created, but a later migration failing must not stop
+    // them — each phase reports its own error.
     try {
       for (const sql of ddlStatements) {
         await pgClient.query(sql);
@@ -159,14 +222,25 @@ export async function GET(request: Request) {
     } catch (err: any) {
       console.error("PG DDL error:", err);
       results.tableError = err.message;
-    } finally {
-      await pgClient.end().catch(() => {});
     }
+
+    await pgClient.end().catch(() => {});
   }
 
   // 2. Create or sync Clerk Doctor Account: doctech@gmail.com
-  const doctorEmail = "doctech@gmail.com";
-  const doctorPassword = "DoctorTech@2026!";
+  const doctorEmail = process.env.DOCTECH_SEED_DOCTOR_EMAIL || "doctech@gmail.com";
+  const doctorPassword = process.env.DOCTECH_SEED_DOCTOR_PASSWORD;
+
+  if (!doctorPassword) {
+    console.error(
+      "[setup-doctech] DOCTECH_SEED_DOCTOR_PASSWORD is not set. Refusing to create a user with a default password."
+    );
+    return NextResponse.json(
+      { success: false, error: "DOCTECH_SEED_DOCTOR_PASSWORD must be set" },
+      { status: 503 }
+    );
+  }
+
   const client = await clerkClient();
 
   let clerkUserId: string | null = null;
@@ -403,7 +477,8 @@ export async function GET(request: Request) {
         category: "SUPPLIES",
         title: "Sterile Medical Supplies & Gloves",
         title_ar: "مستلزمات طبية وقفازات معقمة",
-        amount: 450,
+        // Money is stored as integer piastres (450 EGP).
+        amount: 45000,
         payment_method: "CASH",
         date: today.toISOString(),
       },
@@ -414,7 +489,7 @@ export async function GET(request: Request) {
         category: "UTILITIES",
         title: "Clinic High-Speed Fiber Internet",
         title_ar: "فاتورة إنترنت العيادة فايبر",
-        amount: 380,
+        amount: 38000,
         payment_method: "CARD",
         date: today.toISOString(),
       },
@@ -446,10 +521,10 @@ export async function GET(request: Request) {
   return NextResponse.json({
     success: true,
     message: "DOCTECH environment, tables, and demo doctor provisioned successfully!",
-    credentials: {
-      email: doctorEmail,
-      password: doctorPassword,
-      clinic: clinicName,
+    // NOTE: the seed password is intentionally NOT returned. It is read from
+    // DOCTECH_SEED_DOCTOR_PASSWORD on the server only.
+    clinic: {
+      name: clinicName,
       doctorId: actualDocId,
       clinicId,
     },

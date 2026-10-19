@@ -35,7 +35,6 @@ export default function DoctorNotificationsPage() {
         const p = event.payload;
         const newNotif: SystemNotification = {
           id: p.id,
-          clinicId: "cln-001",
           role: "doctor",
           type: (p.type as SystemNotification["type"]) || "SYSTEM",
           title: p.title,
@@ -53,7 +52,6 @@ export default function DoctorNotificationsPage() {
         if (msg.senderRole === "secretary") {
           const newNotif: SystemNotification = {
             id: `notif-chat-${msg.id}`,
-            clinicId: "cln-001",
             role: "doctor",
             type: "INTERNAL_MESSAGE",
             title: `Direct message from ${msg.senderName}`,

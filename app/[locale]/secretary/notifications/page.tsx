@@ -35,7 +35,6 @@ export default function SecretaryNotificationsPage() {
         const p = event.payload;
         const newNotif: SystemNotification = {
           id: p.id,
-          clinicId: "cln-001",
           role: "secretary",
           type: (p.type as SystemNotification["type"]) || "SYSTEM",
           title: p.title,
@@ -53,7 +52,6 @@ export default function SecretaryNotificationsPage() {
         if (msg.senderRole === "doctor") {
           const newNotif: SystemNotification = {
             id: `notif-chat-${msg.id}`,
-            clinicId: "cln-001",
             role: "secretary",
             type: "INTERNAL_MESSAGE",
             title: `Doctor Clinical Note: ${msg.senderName}`,

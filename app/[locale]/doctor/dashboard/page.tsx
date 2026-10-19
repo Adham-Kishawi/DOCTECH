@@ -13,6 +13,12 @@ import {
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import {
+  DEFAULT_CLINIC_TIMEZONE,
+  dayBoundsUtc,
+  formatInClinicZone,
+  wallDate,
+} from "@/lib/schedule/clinicTime";
 
 export const metadata: Metadata = { title: "Doctor Dashboard" };
 export const dynamic = "force-dynamic";
@@ -42,6 +48,8 @@ export default async function DoctorDashboardPage({
   let pendingReports: any[] = [];
   let totalPatientsCount = 0;
   let unreadMessagesCount = 0;
+  // Set once the clinic row loads; every time shown on this page is read in it.
+  let clinicTz: string = DEFAULT_CLINIC_TIMEZONE;
 
   if (userId) {
     try {
@@ -58,27 +66,31 @@ export default async function DoctorDashboardPage({
         try {
           const { data: cln } = await supabase
             .from("clinics")
-            .select("id, name")
+            .select("id, name, timezone")
             .eq("id", doc.clinic_id)
             .maybeSingle();
           clinic = cln;
+          if (typeof cln?.timezone === "string" && cln.timezone) {
+            clinicTz = cln.timezone;
+          }
         } catch (e) {
           console.warn("Clinic fetch error:", e);
         }
 
-        // Load today's real appointments
+        // Load today's real appointments.
+        // "Today" must be the clinic's calendar day. setHours(0,0,0,0)
+        // resolves midnight in the API server's zone — UTC in production — so
+        // the dashboard shows yesterday's late bookings and drops this
+        // morning's early ones.
         try {
-          const todayStart = new Date();
-          todayStart.setHours(0, 0, 0, 0);
-          const todayEnd = new Date();
-          todayEnd.setHours(23, 59, 59, 999);
+          const { start, end } = dayBoundsUtc(wallDate(new Date(), clinicTz), clinicTz);
 
           const { data: apts } = await supabase
             .from("appointments")
             .select("*, patients(name, phone)")
             .eq("doctor_id", doc.id)
-            .gte("date", todayStart.toISOString())
-            .lte("date", todayEnd.toISOString())
+            .gte("date", start.toISOString())
+            .lt("date", end.toISOString())
             .order("date", { ascending: true });
 
           todayAppointments = apts || [];
@@ -272,7 +284,10 @@ export default async function DoctorDashboardPage({
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-slate-800">
               {todayAppointments.map((apt) => {
-                const aptTime = new Date(apt.date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+                const aptTime = formatInClinicZone(apt.date, clinicTz, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
                 return (
                   <div key={apt.id} className="p-3 sm:p-4 hover:bg-gray-50/70 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 sm:gap-4 min-w-0">
